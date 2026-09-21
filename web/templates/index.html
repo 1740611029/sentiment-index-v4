@@ -116,7 +116,6 @@
       </div>
       <div class="opts" style="margin-bottom:2px">
         <label><input type="checkbox" id="ovl" checked> 叠加指数收盘</label>
-        <label><input type="checkbox" id="smd"> 20日平滑</label>
         <span id="rnginfo"></span>
       </div>
       <div id="plot"></div>
@@ -169,11 +168,6 @@ KEYS.forEach(b=>{
 
 /* ---------- helpers ---------- */
 const fmt=(n,d=2)=>(n===null||isNaN(n))?'--':Number(n).toFixed(d);
-function smooth(a,n=20){
-  const out=[];let s=0;
-  for(let i=0;i<a.length;i++){s+=a[i];if(i>=n)s-=a[i-n];out.push(i>=n-1?s/n:s/(i+1));}
-  return out;
-}
 function state(v){
   if(v<=(SUM.entry_thr??0)) return ['极度恐慌 · 已达入场阈值','#7ee787'];
   if(v<0)   return ['极度恐慌 · 底部区','var(--grn)'];
@@ -224,12 +218,9 @@ function winIdx(B){
 
 function drawChart(){
   const B=DATA[cur], el=document.getElementById('plot');
-  const smdOn=document.getElementById('smd').checked;
   const ovl  =document.getElementById('ovl').checked;
-  const full = smdOn ? smooth(B.score,20) : B.score;
   const [i0,i1]=winIdx(B), N=i1-i0+1;
-  const sc=full.slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
-  const raw=B.score.slice(i0,i1+1);
+  const sc=B.score.slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
 
   const W=Math.max(560,cvW), H=Math.max(340,Math.min(520,Math.round(W*0.36)));
   const PADX=32, L=62, RM=54, TOPY=H*0.075, BOTY=H*0.90;
@@ -325,7 +316,7 @@ function drawChart(){
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>`;
   const evmap={};
   [...B.bottom,...B.top].forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
-  el._geo={x,y,sc,raw,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,smdOn,evmap,hold:HOLD};
+  el._geo={x,y,sc,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,evmap,hold:HOLD};
 
   const svg=el.querySelector('svg');
   svg.addEventListener('mousemove',ev=>{
@@ -348,8 +339,7 @@ function drawChart(){
               · ${(GWHY[e.kind]||{})[gg]||''}${rr}</div>`;
     }).join('');
     tip.innerHTML=`<b>${g.dates[i]}</b><br>`
-      + (g.smdOn ? `20日均 <b>${fmt(g.sc[i],1)}</b>　原始 ${fmt(g.raw[i],1)}`
-                 : `情绪分值 <b>${fmt(g.sc[i],1)}</b>`)
+      + `情绪分值 <b>${fmt(g.sc[i],1)}</b>`
       + `<br>指数 ${g.close[i]}` + evTxt;
   });
   svg.addEventListener('mouseleave',()=>{
@@ -358,12 +348,11 @@ function drawChart(){
     document.getElementById('tip').style.display='none';
   });
 
-  // 窗口信息 + 说明最新值口径（左侧卡片显示的永远是这个原始值）
+  // 窗口信息（图上画的就是原始分值，与左侧卡片同一个值）
   const ri=document.getElementById('rnginfo');
   if(ri) ri.innerHTML=`${dt[0]} ~ ${dt[N-1]}　·　${N} 个交易日　·　最新 `
     +`<b style="color:#79c0ff">${fmt(B.score[i1],1)}</b>`
-    +(smdOn?`（原始值；图上画的是 20日均 ${fmt(sc[N-1],1)}，两者不是同一个东西）`
-           :`（与左侧卡片同一个值）`);
+    +`（与左侧卡片同一个值）`;
 }
 
 
@@ -376,16 +365,9 @@ function render(){
   const sv=document.getElementById('sval'); sv.textContent=fmt(v,1); sv.style.color=col;
   document.getElementById('stag').innerHTML=`<span class="tag" style="background:${col}22;color:${col};border:1px solid ${col}66">${txt}</span>`;
   const prev=B.score[B.score.length-6]??B.score[0];
-  const smdOn=document.getElementById('smd').checked;
-  let smTxt='';
-  if(smdOn){
-    const sm=smooth(B.score,20), smv=sm[sm.length-1];
-    smTxt=`<div style="color:var(--yel);margin-top:2px">图上画的是 <b>20日均 ${fmt(smv,1)}</b>，
-            与上方原始值 ${fmt(v,1)} 不是同一个东西</div>`;
-  }
   document.getElementById('schg').innerHTML=
     `<div>截至 ${B.dates[B.dates.length-1]}　较5日前 <b style="color:${v>=prev?'var(--red)':'var(--grn)'}">${v-prev>=0?'+':''}${fmt(v-prev,1)}</b></div>
-     <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>${smTxt}`;
+     <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
   document.getElementById('mk').style.left=Math.max(0,Math.min(100,(v+30)/160*100))+'%';
   drawChart();
 
@@ -404,7 +386,6 @@ function render(){
 }
 
 document.getElementById('ovl').onchange=drawChart;
-document.getElementById('smd').onchange=()=>{render();};   // 卡片口径提示也要跟着变
 window.addEventListener('resize',()=>{measure();drawChart();});
 measure(); render();
 </script>

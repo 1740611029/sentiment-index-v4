@@ -77,16 +77,15 @@ for(const k of Object.keys(DATA)){
   }
   console.log('  '+k.padEnd(9)+line.join('  '));
 }
-/* 平滑模式：图上是 20 日均，必须显式说明，不能与卡片静默不一致 */
-RNG='all'; document.getElementById('smd').checked=true; drawChart();
+/* 「20日平滑」已移除：图上必须永远是原始分值，与左侧卡片同一个值 */
+RNG='all'; drawChart();
 {
   const info=document.getElementById('rnginfo').innerHTML||'';
-  const ok=/20日均/.test(info);
-  console.log('  平滑模式提示: '+(ok?'✔ 已说明「图上为 20日均」':'✘ 未说明'));
+  const ok=/与左侧卡片同一个值/.test(info) && !/20日均/.test(info);
+  console.log('  口径一致性: '+(ok?'✔ 图上为原始分值，与卡片同一个值':'✘ 图上口径与卡片不一致'));
   if(!ok) bad2++;
 }
 /* 卡片「最近信号」行（信号表已移除，这行是唯一的历史回溯入口） */
-document.getElementById('smd').checked=false;
 let badLs=0;
 for(const k of Object.keys(DATA)){
   cur=k; render();
