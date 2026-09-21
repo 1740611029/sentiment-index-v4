@@ -1,0 +1,31 @@
+==============================================================================================================
+✓ stock_margin_sse   shape=(2000, 7)
+  列： ['信用交易日期', '融资余额', '融资买入额', '融券余量', '融券余量金额', '融券卖出量', '融资融券余额']
+     信用交易日期           融资余额        融资买入额        融券余量       融券余量金额     融券卖出量         融资融券余额
+0  20260918  1334561902108  99491145691  3122423378  18713016200  54014116  1353274918308
+1  20260917  1334104866205  86046179377  3128855707  18578720695  50021542  1352683586900
+2  20260916  1333197305694  89446018949  3133623107  18661378441  51936165  1351858684135
+  尾部：
+        信用交易日期          融资余额        融资买入额       融券余量      融券余量金额      融券卖出量        融资融券余额
+1998  20180628  555085668675  11535268881  824047977  5240011996   79984555  560325680671
+1999  20180627  555886983956  13003328483  841997865  5380856938  115157843  561267840894
+==============================================================================================================
+✓ stock_margin_szse   shape=(1, 6)
+  列： ['融资买入额', '融资余额', '融券卖出量', '融券余量', '融券余额', '融资融券余额']
+    融资买入额     融资余额  融券卖出量   融券余量    融券余额   融资融券余额
+0  234.14  7263.18   3.97  32.07  250.46  7513.64
+  尾部：
+    融资买入额     融资余额  融券卖出量   融券余量    融券余额   融资融券余额
+0  234.14  7263.18   3.97  32.07  250.46  7513.64
+==============================================================================================================
+✗ stock_margin_balance_sse   AttributeError: module 'akshare' has no attribute 'stock_margin_balance_sse'
+
+==============================================================================================================
+akshare 里含 margin / 融资 的接口：
+['macro_china_market_margin_sh', 'macro_china_market_margin_sz', 'option_margin', 'option_margin_symbol', 'stock_margin_account_info', 'stock_margin_bse', 'stock_margin_detail_bse', 'stock_margin_detail_sse', 'stock_margin_detail_szse', 'stock_margin_ratio_pa', 'stock_margin_sse', 'stock_margin_szse', 'stock_margin_underlying_info_bse', 'stock_margin_underlying_info_szse']
+
+含 net_asset / pb / 破净 的接口：
+['stock_a_all_pb', 'stock_a_below_net_asset_statistics']
+
+含 account / 开户 的接口：
+['amac_fund_account_info', 'macro_euro_current_account_mom', 'macro_euro_sentix_investor_confidence', 'macro_usa_current_account', 'stock_account_statistics_em', 'stock_margin_account_info']

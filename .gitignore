@@ -1,0 +1,20 @@
+# 数据缓存：由 run.py build 重新生成，体积 400M+，不入库
+data/cache/
+data/panels/
+
+# 冒烟测试中间产物
+_explore/_smoke_tmp/
+
+# WorkBuddy 会话数据
+.workbuddy-ai/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 系统
+.DS_Store
+Thumbs.db
