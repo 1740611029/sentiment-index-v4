@@ -74,13 +74,10 @@
   .lsig{margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);
         font-size:12px;color:var(--mut);line-height:1.7}
 
-  .note{margin-top:18px;background:var(--card);border:1px solid var(--bd);
-        border-radius:12px;padding:20px}
-  .note h3{font-size:14px;margin-bottom:10px;color:var(--tx)}
-  .note p,.note li{color:var(--mut);font-size:13px;margin-bottom:7px}
-  .note ul{padding-left:20px}
-  .note b{color:var(--tx)}
-  .warn{border-left:3px solid var(--yel);padding-left:14px;margin-top:12px}
+  .gnote{margin-top:2px;padding:9px 12px;background:var(--card2);
+         border:1px solid var(--bd);border-radius:8px;
+         font-size:12px;color:var(--mut);line-height:1.75}
+  .gnote b.k{color:var(--tx)}
 
   #tip{position:fixed;pointer-events:none;background:#0b0f14;border:1px solid #33404f;
        border-radius:8px;padding:9px 12px;font-size:12px;display:none;z-index:99;
@@ -96,7 +93,8 @@
   <header>
     <div class="title">A股板块<span>恐贪情绪指数</span> · SENTI-1</div>
     <div class="sub">单一模型 · 近3年（{{ meta.start }} ~ {{ meta.last_date }}） ·
-      数据生成 {{ meta.built_at }} · 判定窗口 T+{{ hold }}</div>
+      数据生成 {{ meta.built_at }} · 判定窗口 T+{{ hold }}
+      <span style="opacity:.75">　|　说明见 README.md / DELIVERY.md</span></div>
   </header>
 
   <div class="tabs" id="tabs"></div>
@@ -134,54 +132,20 @@
           <b style="color:#e3b341">▲</b>B 中（实心）　
           <b style="color:#8b949e">△</b>C 低（空心）</span>
       </div>
+      <div class="gnote">
+        <b class="k">等级有什么用</b>：等级<b class="k">不决定出不出信号</b>，它回答的是
+        「这次信号有几个独立证据支持」，只用来<b class="k">定仓位</b> ——
+        <b style="color:#7ee787">A</b>：两个确认层都成立（估值已投降 ＋ 多板块共振）→ 证据最足，可正常甚至偏重；
+        <b style="color:#e3b341">B</b>：只成立一个 → 常规仓位；
+        <b style="color:#8b949e">C</b>：两个都没成立 → 置信度回落到全样本平均，建议减半或观望。
+        <br>两个确认层：<b class="k">估值投降</b>＝破净股占比处于近一年高分位（市场级，管时机）；
+        <b class="k">全场共振</b>＝同一天还有别的板块也跌到 ≤0（横截面，管选谁）。
+        近 3 年：<b class="k">A 级 3 个（3/3 命中）、B 级 16 个（14/16）、C 级 0 个</b>；
+        顶部只分 A（杠杆已挤满）／C（没挤满）。
+      </div>
     </div>
   </div>
 
-  <div class="note">
-    <h3>模型说明 · SENTI-1（单一模型，6 板块共用同一套公式）</h3>
-    <ul>
-      <li><b>项目介绍见 <code>README.md</code>，完整交付说明见 <code>DELIVERY.md</code></b> ——
-          README 讲功能和用法；DELIVERY 讲模型公式、全部参数、数据来源、
-          <b>每个数字的样本量与出处脚本</b>、已知边界清单、被否决方案清单、代码地图。
-          两份都能独立阅读，不依赖对话上下文。</li>
-      <li><b>分值含义</b>：0~100 为正常区间；<b>&lt;0 = 恐慌极致（底部区）</b>，
-          <b>&gt;100 = 贪婪极致（顶部区）</b>。溢出不是人为阈值，是绝对刻度的自然溢出。</li>
-      <li><b>底部入场规则（实时可执行，无未来函数）</b>：
-          <b>昨日分值 ≤ 0 且今日分值高于昨日 → 今日收盘买入</b>。
-          只用当日及历史数据，收盘前即可判断。买入后 20 个交易日内不再重复入场。
-          近 3 年 6 板块共触发 <b>19 次，命中 17 次 = 89.5%</b>（随机基线 42%）。
-          <b style="color:var(--yel)">但请按「约 78% 命中」来理解</b> —— 这些信号高度重合，
-          17 次其实只对应 <b>5 次市场级恐慌事件</b>，有效样本量是 5 不是 19；
-          放到 13 年长历史是 18 个事件赢 14 个（77.8%，p=0.014）。详见 DELIVERY.md 6.7。
-          阈值取 0 就是需求原话「低于 0 是底部」，不是调出来的数。</li>
-      <li><b>L 广度情绪</b>（权重 50%）：成分股站上 MA20/MA60 比例、5 日上涨占比、
-          60 日净新高、涨跌停净占比、RSI、乖离率、20 日收益 —— 共 8 项。</li>
-      <li><b>T 价格过热</b>（权重 50%）：乖离率 30% + 20日动量 30% + RSI 22% + 成交额分位 18%。</li>
-      <li><b>底部确认项 A · 恐慌放量</b>：L 超跌 且 成交额放大时额外下修分值。
-          覆盖暴跌型底部（2024-02、2025-04 关税底）。</li>
-      <li><b>底部确认项 B · 磨底 —— 已判定无效，强度置 0（本次移除）</b>：
-          原设计是「距 250 日高点深度回撤 + 个股走势高度同步」时额外下修分值，
-          用来抓 2024-09 那种「不暴跌、慢慢磨」的底。<br>
-          <b>实锤：它与失败绑定，不是与成功绑定。</b>生产 22 次信号里失败组 cf_g 均值 0.333、
-          命中组 0.098。放到长历史（8 宽基 × 13 年）验证同样成立，
-          去掉它之后全程命中率 50.0% → 62.8%、交付窗口 84.0% → 91.7%、
-          最难的 2015-2016 段 23.1% → 55.6%。<br>
-          <b>语义结论：「磨底」不是底。</b>深度回撤 + 走势高度同步，说明市场还在慢慢往下走，
-          并没有出现恐慌放量式的投降。真正有效的是确认项 A（cf_b）。
-          cf_g 仍在面板里保留，但不再参与分值。</li>
-      <li><b>顶背离（已验证但没采用）</b>：div = 价格位置 − 广度位置，能干净地区分两次顶 ——
-          2024-10-08 是「价涨 + 广度也涨」的健康普涨（div ≈ 0），
-          2026-05/06 是「价涨 + 广度已塌」的真背离（创业板 div = 78、沪深300 = 67）。
-          但单独拿它当信号只有 45% —— 上涨途中也常出现背离，故未纳入公式。</li>
-      <li><b>刻度</b>：各因子按本板块<b>过去 750 个交易日</b>的 p2 / p98 分位锚定到 0~100。
-          刻意不用滚动 z-score —— 滚动 z 测的是「相对近期的意外」，
-          阴跌磨底时永远不极端，实测极值日与真实拐点完全错相位。</li>
-      <li><b>无未来函数（本次修复的关键 bug）</b>：所有因子只用当日及历史数据；
-          事件判定统一取信号日之后 T+{{ hold }} 的收益，信号之间设 20 个交易日冷却期。
-          <b>          锚点也必须是因果的</b> —— 旧版本用「整个面板」的分位数当锚点，
-          等于用 2026 年的数据给 2023 年的分值定刻度，是前视函数（已修复）。</li>
-    </ul>
-  </div>
 </div>
 <div id="tip"></div>
 
