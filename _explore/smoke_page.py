@@ -5,8 +5,7 @@
 这个脚本三步走：
   ① 抽出页面的 <script> 段，用 node --check 查语法
   ② 抽出页面里内联的 DATA / SUM（真实数据）
-  ③ 在 node 里 stub 掉 document，真实调用 table()，比对渲染行数与数据条数，
-     并检查输出里有没有 undefined / NaN
+  ③ 在 node 里 stub 掉 document，真实调用 drawChart() 与渲染逻辑，校验点数/末点坐标/等级标记/NaN
 
 用法：
   python _explore/smoke_page.py                # 默认 http://127.0.0.1:8779/
@@ -63,6 +62,16 @@ for(const k of Object.keys(DATA)){
     const okP=(pts===exp), okX=(Math.abs(lastX-782)<0.6);   // 末点应贴住绘图区右边界 62+720
     line.push(rg+':'+pts+(okP?'':'(应'+exp+')')+(okX?'':'(末点x='+lastX+')'));
     if(!okP||!okX) bad2++;
+    /* 等级标记：三角形数 == 窗口内信号数；光环数 == 窗口内 A 级数 */
+    const [w0,w1]=winIdx(DATA[k]);
+    const d0=DATA[k].dates[w0], d1=DATA[k].dates[w1];
+    const all=[...DATA[k].bottom,...DATA[k].top];
+    const inW=all.filter(e=>e.date>=d0&&e.date<=d1);
+    const nTri=(h.match(/l-6\.5 /g)||[]).length;
+    const nHalo=(h.match(/r="9\.5"/g)||[]).length;
+    const nA=inW.filter(e=>e.grade==='A').length;
+    if(nTri!==inW.length){console.log('  !! '+k+' '+rg+' 信号标记 '+nTri+' != 窗口信号 '+inW.length);bad2++;}
+    if(nHalo!==nA){console.log('  !! '+k+' '+rg+' A级光环 '+nHalo+' != A级信号 '+nA);bad2++;}
     if(!info.includes(DATA[k].dates[DATA[k].dates.length-1])){
       console.log('  !! '+k+' '+rg+' 窗口信息缺少末日');bad2++;}
   }
@@ -76,6 +85,17 @@ RNG='all'; document.getElementById('smd').checked=true; drawChart();
   console.log('  平滑模式提示: '+(ok?'✔ 已说明「图上为 20日均」':'✘ 未说明'));
   if(!ok) bad2++;
 }
+/* 卡片「最近信号」行（信号表已移除，这行是唯一的历史回溯入口） */
+document.getElementById('smd').checked=false;
+let badLs=0;
+for(const k of Object.keys(DATA)){
+  cur=k; render();
+  const t=document.getElementById('lsig').innerHTML||'';
+  if(!/级/.test(t)||/undefined|NaN/.test(t)){
+    console.log('  !! '+k+' 最近信号行异常: '+t.slice(0,90));badLs++;}
+}
+if(badLs===0) console.log('  最近信号行: 6 个板块均已渲染 ✔');
+bad2+=badLs;
 console.log('\n  '+(bad2===0?'✔ 图表冒烟通过':'✘ 图表存在 '+bad2+' 处问题'));
 process.exit(bad2?1:0);
 """
@@ -87,36 +107,10 @@ def fetch(url):
     return opener.open(req, timeout=60).read().decode("utf-8", "replace")
 
 
-JS_TEST = r"""
-const fs=require('fs');
-const {DATA,SUM}=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
-global.SUM=SUM; global.HOLD=20;
-global.GC={A:['A 高置信','#7ee787'],B:['B 中','#e3b341'],C:['C 低','#8b949e']};
-global.fmt=(v,d=2)=>Number(v).toFixed(d);
-global.document={getElementById:id=>({checked:false})};
-const src=fs.readFileSync(process.argv[3],'utf8');
-const a=src.indexOf('function gbadge'), b=src.indexOf('/* ---------- render ---------- */');
-if(a<0||b<0){console.log('!! 未定位到函数段（模板结构可能变了）');process.exit(1);}
-eval(src.slice(a,b));
-let bad=0, tot=0;
-for(const k of Object.keys(DATA)){
-  const v=DATA[k];
-  const tb=table(v.bottom,'bottom'), tt=table(v.top,'top');
-  const nb=(tb.match(/<tr><td>/g)||[]).length, nt=(tt.match(/<tr><td>/g)||[]).length;
-  tot+=nb+nt;
-  const ok=nb===v.bottom.length && nt===v.top.length;
-  if(!ok) bad++;
-  console.log('  '+k.padEnd(9)+' 底部 '+nb+'/'+v.bottom.length+'   顶部 '+nt+'/'+v.top.length+(ok?'':'   <<< 行数不一致'));
-  if(/undefined|NaN/.test(tb+tt)){console.log('     !! 输出含 undefined/NaN'); bad++;}
-}
-global.document={getElementById:id=>({checked:true})};
-const fa=(table(DATA.CSI1000.bottom,'bottom').match(/<tr><td>/g)||[]).length;
-const ea=DATA.CSI1000.bottom.filter(e=>e.grade==='A').length;
-console.log('  A级筛选: 渲染 '+fa+' 行 / 数据 '+ea+' 个'+(fa===ea?'  ✔':'  <<< 不一致'));
-if(fa!==ea) bad++;
-console.log('\n  共渲染 '+tot+' 行；'+(bad===0?'✔ 冒烟测试通过':'✘ 存在 '+bad+' 处问题'));
-process.exit(bad?1:0);
-"""
+    req = urllib.request.Request(url)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(req, timeout=60).read().decode("utf-8", "replace")
+
 
 
 def main():
@@ -168,14 +162,6 @@ def main():
         print((r.stderr or "")[:1500])
         return 1
 
-    print("\n③ 用真实数据渲染表格")
-    t_path = os.path.join(TMP, "test.js")
-    with open(t_path, "w", encoding="utf-8") as f:
-        f.write(JS_TEST)
-    r = subprocess.run([NODE, t_path, d_path, js_path], capture_output=True, text=True)
-    print((r.stdout or "").rstrip())
-    if r.returncode != 0:
-        print((r.stderr or "")[:1500]); return 1
     return 0
 
 

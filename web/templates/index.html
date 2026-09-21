@@ -62,7 +62,6 @@
   .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;
             vertical-align:middle;margin-right:6px}
 
-  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;
      padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
@@ -72,11 +71,8 @@
   .up{color:var(--red)} .dn{color:var(--grn)}
   .empty{color:var(--dim);font-size:13px;padding:16px 10px}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
-  .stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px}
-  .stat .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
-  .stat .k{color:var(--mut);font-size:12px;margin-top:2px}
-  .stat .n{color:var(--dim);font-size:12px;margin-top:6px}
+  .lsig{margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);
+        font-size:12px;color:var(--mut);line-height:1.7}
 
   .note{margin-top:18px;background:var(--card);border:1px solid var(--bd);
         border-radius:12px;padding:20px}
@@ -90,8 +86,7 @@
        border-radius:8px;padding:9px 12px;font-size:12px;display:none;z-index:99;
        box-shadow:0 6px 20px rgba(0,0,0,.5);white-space:nowrap}
   @media(max-width:1000px){
-    .hero,.two{grid-template-columns:1fr}
-    .stats{grid-template-columns:repeat(2,1fr)}
+    .hero{grid-template-columns:1fr}
     .wrap{padding:0 16px}
   }
 </style>
@@ -114,6 +109,7 @@
       <div class="chg" id="schg"></div>
       <div class="bar"><div class="mk" id="mk" style="left:50%"></div></div>
       <div class="barlab"><span>0 极度恐慌</span><span>100 极度贪婪</span></div>
+      <div class="lsig" id="lsig"></div>
     </div>
     <div class="card chartcard">
       <div class="chead">
@@ -133,22 +129,11 @@
         <span><i style="background:#7ee787"></i>入场阈值线</span>
         <span><i style="background:var(--red)"></i>&gt;100 顶部溢出区</span>
         <span><i style="background:var(--yel)"></i>信号点</span>
+        <span style="white-space:nowrap">等级：
+          <b style="color:#7ee787">▲</b>A 高置信（实心+光环）　
+          <b style="color:#e3b341">▲</b>B 中（实心）　
+          <b style="color:#8b949e">△</b>C 低（空心）</span>
       </div>
-    </div>
-  </div>
-
-  <div class="stats" id="stats"></div>
-
-  <div class="two">
-    <div class="card">
-      <div class="lab" style="margin-bottom:8px">底部入场信号（昨 ≤ 0 且今日回升 → 今日收盘买入）
-        <label style="float:right;font-weight:400"><input type="checkbox" id="fbot"> 只看 A 级</label></div>
-      <div id="tbot"></div>
-    </div>
-    <div class="card">
-      <div class="lab" style="margin-bottom:8px">顶部触发（实时首次破 100 · 只能当风险提示）
-        <label style="float:right;font-weight:400"><input type="checkbox" id="ftop"> 只看 A 级</label></div>
-      <div id="ttop"></div>
     </div>
   </div>
 
@@ -189,215 +174,9 @@
           阴跌磨底时永远不极端，实测极值日与真实拐点完全错相位。</li>
       <li><b>无未来函数（本次修复的关键 bug）</b>：所有因子只用当日及历史数据；
           事件判定统一取信号日之后 T+{{ hold }} 的收益，信号之间设 20 个交易日冷却期。
-          <b>锚点也必须是因果的</b> —— 旧版本用「整个面板」的分位数当锚点，
-          等于用 2026 年的数据给 2023 年的分值定刻度，是前视函数（详见下方实测边界）。</li>
+          <b>          锚点也必须是因果的</b> —— 旧版本用「整个面板」的分位数当锚点，
+          等于用 2026 年的数据给 2023 年的分值定刻度，是前视函数（已修复）。</li>
     </ul>
-    <div class="warn">
-      <b>实测边界（必须知道 —— 本次做了重大更正，请务必读完）</b>
-      <ul style="margin-top:6px">
-        <li><b>底部入场信号命中 <span id="w1">--</span></b>，
-            平均 T+20 收益 <b id="w4">--</b>，平均最深回撤 <b id="w5">--</b>；
-            <b>买入后未被套超 3% 的占 <span id="w2">--</span></b>。
-            随机基线是 42% 命中 / 50% 未被套。</li>
-        <li><b>⚠️ 更正：之前页面上的「95% / 100%」不作数。</b>
-            那些数字是用「<b>整个面板</b>的分位数当刻度锚点」算出来的 ——
-            2023 年 9 月的分值依赖 2026 年 9 月的数据，是<b>前视函数</b>。<br>
-            实测后果：用截至 2026-03-31 和截至 2026-09-18 的数据各算一遍，
-            重叠区间的历史分值<b>没有一天完全相同</b>，最大被改写 <b>2.71 分</b>。
-            也就是说昨天显示的 −10，今天可能变成 −3 —— 指标根本没法每天跟踪。
-            而在这个失真的刻度上调出来的阈值（−6），实盘也不可复现。<br>
-            <b>已修复</b>：锚点改成因果的（t 时刻的刻度只由过去 750 个交易日决定，且整体后移一天）。
-            改完后复验：新增数据 <b>100% 不会改写已发布的历史</b>（6 个板块逐日比对全部 0 差异）。<br>
-            <b>代价要讲清楚：真实命中率从「95%」降到 77%。但 77% 才是真数。</b></li>
-        <li><b>阈值 −6 不再特殊</b>：新刻度下重扫，命中率是
-            8 → 75.0%、5 → 78.3%、2 → 85.0%、<b>0 → 89.5%</b>、−3 → 87.5%、
-            −6 → 86.7%、−9 → 85.7%、−12 → 90.0%。
-            −6 并不比 0 好。<b>所以取 0 —— 它不是调出来的，就是需求原话。</b></li>
-        <li><b>样本量小，置信区间很宽</b>：19 次信号命中 17 次，
-            威尔逊 95% 置信下界只有 <b>68.6%</b>。
-            <b>请不要把 89.5% 当成稳定能力</b>，真实水平大致在 69%~97% 之间。</li>
-        <li><b>仅剩的 2 次失败是同一天</b>：2024-01-23，中证2000（T+20 −6.79%，
-            最深 <b>−23.61%</b>）和中证1000（T+20 +1.43%，最深 −15.48%）。
-            那天大盘的信号是<b>命中</b>的 —— 出事的只有中小盘
-            （微盘股流动性危机、雪球敲入、DMA 爆仓）。
-            <b>流动性危机里「跌得多」不等于「跌完了」。</b></li>
-        <li><b>新增「全场共振」确认层（本轮最重要的一块）</b>：
-            上面那两次失败给了我一条线索：<b>同一天、同一个模型，大盘板块赚 +6.74%，中证2000 亏 −6.79%</b>。
-            差别不在单个板块的走势里，而在<b>横截面</b>上 —— 那天只有中小盘在恐慌，大盘已经回升了。<br>
-            于是给每个底部信号加一个标签：<b>共振度 = 信号日收盘后，还有多少个板块的分值仍在 ≤ 0</b>。
-            语义上：<b>多个板块一起恐慌 = 系统性投降</b>；<b>只有自己恐慌 = 局部流动性危机</b>。
-            这个量只用当日数据，收盘后即可算出，<b>无前视</b>。<br>
-            实测（两个互相独立的样本集，都过了 2015-2016）：
-            <table style="margin:6px 0 4px">
-              <thead><tr><th>样本</th><th>共振≥2 的信号</th><th>T+60 盈利</th><th>最差浮亏</th><th>随机基线</th></tr></thead>
-              <tbody>
-              <tr><td>交付 6 板块（2019~2026）</td><td>8</td><td><b>8/8 = 100%</b></td><td>−2.43%</td><td>50.9%</td></tr>
-              <tr><td>长历史 8 宽基（2013~2026）</td><td>18</td><td><b>18/18 = 100%</b></td><td>−8.83%</td><td>53.1%</td></tr>
-              </tbody>
-            </table>
-            合计 <b>26/26</b>。同板块、同板块分布随机买入的基线只有 <b>52.6%</b>，
-            在基线下出现 26/26 的概率约 <b>1.4×10⁻⁷</b>。<br>
-            长历史分年度：<b>2015 年 4/4、2016 年 3/3、2020 年 3/3</b>
-            —— 而<b>全部</b>信号在 2015 年只有 4/12。这是目前唯一能救 2015 年的条件。<br>
-            <b>代价：只留约 1/4 的信号</b>（生产 33 → 8，长历史 77 → 18）。
-            所以我没有把它做成过滤器（那样会丢掉 3/4 的机会，而且剩下的 3/4 本身也有 72%~76% 的命中率），
-            而是在信号表里标一列「共振」，<b>由你自己决定要不要只做共振信号</b>。<br>
-            <b>两处必须说清的保留意见</b>：① 长历史那 8 个宽基里没有中证2000
-            （该指数 2023 年才发布，长历史是合成的），所以长历史验证对「局部危机」这种场景覆盖不足；
-            ② 2020-03-17 那 3 次在页面主口径（T+20 未被套&gt;3%）下算失败，
-            但它们 T+20 的实际收益是 <b>+2.4%~+2.9%（正的）</b>，只是中途浮亏约 5% 被判「被套」，
-            T+60 是 +5.7%~+6.6%。<b>是口径偏严，不是真亏。</b><br>
-            ③ <b>这个标签有已知的假阴性</b>：2025-04-08（关税暴跌）那天 6 个板块<b>同日</b>反弹，
-            全部大赚 +5.35%~+16.87%，但因为当天所有板块都回到 0 以上，共振度算出来是 0，
-            会被标成「孤立」。也就是<b>它会漏掉「全市场同步 V 型反转」这种最好的机会</b>。<br>
-            我试过改成看「前一天」（恐慌发生的那天）的共振数 —— 那样 2025-04-08 就能被捞回来，
-            生产上 21/21 = 100%；但长历史那 8 个宽基几乎全是同一个东西（沪深300/中证100/中证800/上证180/上证50 高度重叠），
-            「昨天几个板块 ≤0」在那里要么全中要么全不中，<b>根本验证不了</b>。
-            按我的纪律（长历史过不了就不采），<b>只用已验证的「当日」口径</b>。
-            所以：<b>「共振 ✔」= 高置信；「孤立」≠ 不能做，只是置信度回落到 72%~76%。</b></li>
-        <li><b>新增「估值已投降」确认层（价量之外的新信息源）</b>：
-            上面所有改进都在价量数据里打转，而价量在「流动性危机」和「真恐慌底」上长得几乎一样。
-            所以我引入了两个<b>市场级</b>新数据：<b>融资余额</b>（沪深合计，2010 年至今）和
-            <b>破净股占比</b>（2005 年至今），都做了 shift(1)，只用次日才可得的数据。<br>
-            检验下来<b>融资余额没过 2015 那一关</b> —— 它靠的是「那年干脆不出信号」来回避，不算解开
-            （不过它给了个很好的语义：2015 年 12 个信号按融资余额 20 日降幅二分，
-            去杠杆剧烈的一半 T+60 是 <b>6/6</b>，去杠杆缓慢的一半是 <b>0/6</b>、均收益 −14.30%。
-            <b>杠杆还没出清，底就不是底。</b>）<br>
-            <b>破净率的「近一年分位」过了，而且是唯一真正救回 2015 年的条件。</b>
-            为什么必须用<b>分位</b>：破净率的绝对水平有强烈的时代偏移
-            （2015 年最高只有 1.76%，2024 年能到 16.64%），用分位才能跨时代可比。
-            <table style="margin:6px 0 4px">
-              <thead><tr><th>样本</th><th>破净分位≥60 的信号</th><th>T+60 盈利</th><th>随机基线</th></tr></thead>
-              <tbody>
-              <tr><td>交付 6 板块</td><td>28（丢 5）</td><td><b>24/28 = 85.7%</b></td><td>52.1%</td></tr>
-              <tr><td>长历史 8 宽基 · trailing</td><td>60（丢 17）</td><td><b>53/60 = 88.3%</b></td><td>52.9%</td></tr>
-              <tr><td>长历史 8 宽基 · 扩展锚（含 2015-2016）</td><td>29（丢 6）</td><td><b>29/29 = 100%</b></td><td>52.9%</td></tr>
-              </tbody>
-            </table>
-            分年度 T+60：<b>2015 年 6/6</b>（无过滤只有 6/12）、2016 年 6/6、2020 年 4/4、
-            2022 年 5/5、2024 年 1/1、2025 年 7/7。合并两个独立样本集 <b>53/57</b>，p &lt; 1e-6。<br>
-            <b>门槛 40 / 45 / 50 / 55 / 60 的结果完全一致</b> —— 是平台，不是挑出来的尖峰。<br>
-            <b>代价只有约 15% 的信号</b>（33 → 28），比共振层（丢 76%）便宜得多，
-            所以这是两个确认层里<b>更该先用的那个</b>。<br>
-            <b>要说清的边界</b>：这是<b>市场级</b>数据，同一天所有板块读数相同 ——
-            它回答的是「现在是不是全市场级别的投降」，<b>不能</b>区分同一天哪个板块更好
-            （2024-01-23 大盘赚 +6.74%、中小盘亏 −6.79%，破净读数完全一样）。
-            那是共振层的事。<b>两层互补：估值层管「时机」，共振层管「选谁」。</b><br>
-            本页 6 个板块实测：估值投降层 T+60 盈利 <b id="w7">--</b>；
-            估值 + 共振<b>双层都满足</b>的 T+60 盈利 <b id="w8">--</b>。<br>
-            <b>⚠️ 但在本页近 3 年这个窗口里，19 次信号<b>全部</b>满足破净分位 ≥ 60</b>
-            （近几年破净率整体就处在历史高位，最低也有 62 分位）——
-            也就是说<b>这一层在展示窗口内几乎不过滤任何信号</b>，命中率仍是 17/19，没有变化。<br>
-            <b>它的价值全部体现在长历史，尤其是 2015 年。</b>
-            这不矛盾：近 3 年本来就没有出现过「杠杆高位慢慢阴跌」那种环境，
-            所以判别条件自然全部通过。<b>这个标签是给未来遇到那种环境时用的。</b><br>
-            当前市场破净分位：<b id="w6">--</b>。</li>
-        <li><b>置信等级（把上面几层合成一个判断，不用你自己逐列看）</b>：
-            每个信号现在带一个 <b>A / B / C</b> 等级，勾上表格右上角的「只看 A 级」即可筛掉低置信信号。
-            <table style="margin:6px 0 4px">
-              <thead><tr><th>等级</th><th>底部含义</th><th>顶部含义</th><th>历史上什么表现</th></tr></thead>
-              <tbody>
-              <tr><td><b style="color:#7ee787">A 高置信</b></td>
-                  <td>估值已投降 <b>且</b> 全场共振</td><td>杠杆已挤满</td>
-                  <td>底部 T+60 盈利 <b>26/26</b>（生产 8/8 + 长历史 18/18）；
-                      顶部 T+60 下跌 8/8 —— 但样本只有 8，且中途最大踏空 +15%</td></tr>
-              <tr><td><b style="color:#e3b341">B 中</b></td>
-                  <td>只满足其中一个确认层</td><td>—</td>
-                  <td>底部 T+60 盈利 生产 16/20、长历史 trail 35/42</td></tr>
-              <tr><td><b style="color:#8b949e">C 低</b></td>
-                  <td>两个确认层都不满足</td><td>杠杆没挤满</td>
-                  <td>底部命中率约 72%~76%；顶部与随机基线<b>无显著差异</b>（p = 0.39）</td></tr>
-              </tbody>
-            </table>
-            <b>怎么用</b>：A 级是「可以重仓」的那类；B 级是正常水平；
-            <b>C 级不是「不能做」，只是置信度回落到 72%~76%，和历史平均差不多</b> ——
-            勾掉筛选就能看到全部信号。<br>
-            <b>要说清的两点</b>：① 本页近 3 年窗口里，底部 19 次信号<b>没有一次是 C 级</b>
-            （近几年破净率一直在高位，估值层全部通过），所以底部 A/B/C 的区分在展示窗口内
-            <b>主要体现在 B 和 A 之间</b>；② 顶部 9 次<b>全是 C 级</b>（杠杆一次都没挤满过）。</li>
-        <li><b>持有越久平均收益越高，但「未被套」比例必然下降</b>（同一批 17 次信号）：
-            <table style="margin:6px 0 4px">
-              <thead><tr><th>持有期</th><th>命中</th><th>仅看期末盈利</th><th>未被套&gt;3%</th><th>均收益</th></tr></thead>
-              <tbody>
-              <tr><td>T+10</td><td>15/17 = 88.2%</td><td>88.2%</td><td>88.2%</td><td>+3.15%</td></tr>
-              <tr><td><b>T+20（页面口径）</b></td><td><b>15/17 = 88.2%</b></td><td><b>94.1%</b></td><td>88.2%</td><td>+7.63%</td></tr>
-              <tr><td>T+40</td><td>13/17 = 76.5%</td><td>82.4%</td><td>82.4%</td><td>+10.42%</td></tr>
-              <tr><td>T+60</td><td>13/17 = 76.5%</td><td>82.4%</td><td>76.5%</td><td>+11.38%</td></tr>
-              <tr><td>T+90</td><td>11/17 = 64.7%</td><td>82.4%</td><td>64.7%</td><td>+12.97%</td></tr>
-              </tbody>
-            </table>
-            窗口越长，期间最深回撤必然更深，所以「未被套」下降是<b>尺度问题不是模型问题</b>。
-            <b>只看期末是否盈利：T+20 是 94.1%，T+90 是 82.4%。</b></li>
-        <li><b>不要给这个信号加止损（实测反而更差）</b>：T+60 口径下
-            无止损 82.4% 盈利 / 均 +11.38% / 最差 −7.40% / 标准差 12.35%；
-            加 −8% 止损变成 76.5% 盈利 / 均 +10.13% / 最差 −8.00% /
-            <b>标准差反而升到 13.58%</b>。<br>
-            原因：唯一两次会被止损的（2024-01-23 中证2000、中证1000）
-            最终是 <b>−1.29% 和 +6.62%</b> —— 深跌之后都回来了，止损等于把浮亏坐实。<br>
-            还有一点要分清：上面那个 <b>−23.61% 是「期间最深回撤」，不是最终亏损</b>，
-            那次到 T+60 只剩 −1.29%。</li>
-        <li><b>放到 13 年长历史里会明显变差</b>：用同一套规则跑 8 个宽基 × 2013~2026，
-            全程 <b>62.8%</b>（78 次），交付窗口 91.7%（24 次）。
-            但分年度看：<b>2019 年 0/4、2022 年 11/21、2015 年 4/12</b>。
-            近 3 年表现好得多，是因为那 3 年<b>没出现过 2015 那种连续崩塌</b>。<br>
-            → <b>结论：这套规则在「普通熊市」里可用，在「连环崩塌」里会连续误判。</b></li>
-        <li><b>长历史数据的两个已知偏差</b>：① 用<b>当前</b>成分股清单回溯，有幸存者偏差；
-            ② 中证2000 指数 2023-08 才发布，2023-06 之前是用成分股等权收益指数<b>合成</b>的，
-            只用于锚点预热，<b>不会出现在图上</b>（展示从 2023-09-20 开始）。</li>
-        <li><b>顶部信号实测无效 —— 但现在已经知道为什么了</b>：
-            实时首次突破 100 的命中只有 <span id="w3">--</span>。
-            换成「从 100 上方回落」口径重新测，同样只有 22% —— 两种口径都试过，不是口径问题。<br>
-            <b>真正的原因：近 3 年压根没有出现过「杠杆顶」。</b>
-            用与底部对称的思路（底部要「杠杆已出清」→ 顶部要「杠杆已挤满」）检验融资余额分位：
-            <table style="margin:6px 0 4px">
-              <thead><tr><th>破 100 时的融资余额分位</th><th>例子</th><th>T+20</th><th>T+60 下跌</th></tr></thead>
-              <tbody>
-              <tr><td><b>≈100（杠杆挤满）</b></td><td>2015-05、2020-07</td><td>涨跌互现</td><td><b>8/8 = 100%</b></td></tr>
-              <tr><td>10~18（杠杆没挤满）</td><td>2024-09 那 9 次</td><td>继续涨</td><td>涨跌互现</td></tr>
-              </tbody>
-            </table>
-            近 3 年 9 次破 100，融资余额分位<b>全部落在 10~18</b> ——
-            2024-09 那波是政策刺激的急涨，<b>杠杆还没加回来</b>，所以不是顶，之后继续涨是合理的。<br>
-            加上「融资余额分位 ≥70」之后：长历史 T+60 下跌 <b>8/8</b>（随机基线 47.6%，p = 0.0027）；
-            而<b>不加这个过滤的顶部信号，15/29 = 51.7%，基线 47.5%，p = 0.39 —— 根本不显著</b>。
-            门槛 50~95 结果完全一致（平台，不是尖峰）。<br>
-            <b>所以结论要改：不是「顶部信号无效」，是「近 3 年没有顶可抓」。</b>
-            顶部表新增了「杠杆」列和 T+60 列，你可以自己看每次破 100 时杠杆挤没挤满。<br>
-            当前融资余额分位：<b id="w9">--</b>。</li>
-        <li><b>⚠️ 顶部信号有两个天生缺陷，即使加了确认层也一样</b>：
-            ① <b>尺度是 T+60，不是 T+20</b> —— 杠杆挤满的信号 T+20 下跌只有 3/7，T+60 才是 7/7，
-            均收益从 +0.50% 变成 −5.32%；
-            ② <b>中途最大踏空仍有 +15%</b> —— 即使方向最终对了，中间会先涨 15%。
-            <b>所以这个信号只能当风险提示，不能用来清仓或做空。</b></li>
-        <li><b>为什么顶部从根上就不成立</b>：13 年长历史里顶部口径最高也只有 59%（基线 42%）。
-            典型：大盘抓到了 2015-06-08 真顶（20 日 −27.4%），
-            但也在 2015-04-27 泡沫半山腰误报（+8.5%）。
-            <b>泡沫能持续多久，事前无法判断</b> —— 这跟样本是不是牛市无关，是逻辑问题。</li>
-        <li><b>2026-05/06 的真实大顶没有触发 &gt;100</b>：那次是「无声顶」——
-            指数创新高但广度没跟上，情绪读数只到 56~88 分，而 3 年内情绪最高点是
-            2024-10-08 的 118 分（924 全民狂热）。模型如实反映了这一点。</li>
-        <li><b>试过但被长历史否决的过滤条件（别再捡回来）</b>：
-            ① <b>成交额分位 ≥ 0.35</b>：生产上看着能到 88%，长历史里反而 77.1% → 69.2%；
-            ② <b>近 5 日不创新低</b>：长历史毫无改善（77.1% → 77.1%）；
-            ③ <b>只在恐慌放量时买（cf_b &gt; 0）</b>：生产上 9/9 = 100% 且最差回撤降到 −2.48%，
-            看着极漂亮，但长历史里 2015 年从 4/12 掉到 <b>0/4</b>、全程 66.7%（不如不限的 62.8% 稳健）；
-            ④ <b>把「放量」从 250 日分位改成相对 20 日均量</b>（想让它在 2015 年高成交环境下也成立）：
-            长历史最差回撤确实从 −25.87% 压到 −11.59%，但 <b>2015 年仍是 4/12</b>，
-            而生产命中率从 89.5% 掉到 77.8% → 不划算。<br>
-            <b>共同教训：19 个样本上看着再美，不过 2015-2016 那一关就不能采。</b></li>
-        <li><b>稳健性体检（不是靠个别板块撑着）</b>：
-            <b>留一板块法</b>：去掉任一板块后，其余 5 个板块命中率在 <b>86.7% ~ 93.8%</b> 之间；
-            <b>分年度</b>：2023 年 2/2、<b>2024 年 3/5 = 60%</b>、2025 年 6/6、2026 年 6/6
-            —— <b>所有失败都集中在 2024 年初那一次事件</b>；
-            <b>参数扰动</b>：K_B 20→35 命中率 88.9%→81.8%（平缓）、
-            CF_AMT_LO 0.55→0.65 为 85.0%~89.5%、CF_L_HI 10→15 为 89.5%~90.0%、
-            锚点窗口 500→1300 为 76.2%~89.5%（750 以上基本是平台）。<b>没有悬崖。</b></li>
-        <li><b>2024-09 那次「地量磨底」现在不再触发</b>（如实说明）：
-            磨底确认项 cf_g 已被判定无效并移除（依据见上方模型说明）。
-            它此前唯一的价值就是抓这次底，而代价是在 2015-2016 制造大量假信号。
-            <b>权衡之后判断不值得</b> —— 宁可漏掉缩量磨出来的底，也不要在连环崩塌里连续误判。</li>
-      </ul>
-    </div>
   </div>
 </div>
 <div id="tip"></div>
@@ -437,6 +216,11 @@ function state(v){
   if(v<=100)return ['贪婪','#ff8c5a'];
   return ['极度贪婪 · 顶部区','var(--red)'];
 }
+
+/* 置信等级配色与释义（全页统一口径） */
+const GCOL={A:'#7ee787',B:'#e3b341',C:'#8b949e'};
+const GWHY={bottom:{A:'估值投降 + 全场共振',B:'只满足其中一个确认层',C:'两个确认层都不满足'},
+            top:{A:'杠杆已挤满',C:'杠杆没挤满'}};
 
 /* ---------- chart ---------- */
 let cvW=900;
@@ -538,15 +322,21 @@ function drawChart(){
     <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>`);
   P.push(`<path d="${a2}" fill="url(#g1)"/>`);
   P.push(`<path d="${d}" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linejoin="round"/>`);
-  // 信号点
+  // 信号点：形状/上下位置 = 方向，样式 = 置信等级（A 实心+光环 / B 实心 / C 空心）
   const evs=[...B.bottom,...B.top];
   evs.forEach(e=>{
     const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
-    const c = e.kind==='bottom'?'#3fb950':'#f85149';
-    P.push(`<circle cx="${x(a).toFixed(1)}" cy="${y(sc[a-i0]).toFixed(1)}" r="5" fill="${c}"
-             stroke="#0e1116" stroke-width="2"/>`);
-    if(e.kind==='bottom') P.push(`<path d="M${x(a).toFixed(1)} ${(y(sc[a-i0])+13).toFixed(1)}
-             l-5 9 l10 0 Z" fill="${c}"/>`);
+    const g=e.grade||'C', col=GCOL[g]||GCOL.C;
+    const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+(e.kind==='bottom'?12:-12);
+    P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
+             stroke="${col}" stroke-width="1" opacity=".5"/>`);
+    if(g==='A')
+      P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="9.5" fill="none"
+               stroke="${col}" stroke-width="1.4" opacity=".9"/>`);
+    const ap=(e.kind==='bottom'?cyc-8:cyc+8).toFixed(1), bs=(e.kind==='bottom'?cyc+5:cyc-5).toFixed(1);
+    P.push(`<path d="M${cx} ${ap} l-6.5 ${(bs-ap)} l13 0 Z"
+             fill="${g==='C'?'none':col}" stroke="${col}" stroke-width="${g==='C'?1.8:1.2}"
+             stroke-linejoin="round"/>`);
   });
   // 最新点标注（与左侧卡片同源，避免"对不上"）
   const lx=x(i1), ly=y(sc[N-1]);
@@ -565,7 +355,9 @@ function drawChart(){
   P.push(`<circle id="hdot" r="4.5" fill="#fff" style="display:none"/>`);
 
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>`;
-  el._geo={x,y,sc,raw,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,smdOn};
+  const evmap={};
+  [...B.bottom,...B.top].forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
+  el._geo={x,y,sc,raw,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,smdOn,evmap,hold:HOLD};
 
   const svg=el.querySelector('svg');
   svg.addEventListener('mousemove',ev=>{
@@ -579,10 +371,18 @@ function drawChart(){
     hd.setAttribute('cx',hx);hd.setAttribute('cy',g.y(g.sc[i]));hd.style.display='';
     const tip=document.getElementById('tip');
     tip.style.display='block';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY-10)+'px';
+    const evs2=g.evmap[g.dates[i]]||[];
+    const evTxt=evs2.map(e=>{
+      const gg=e.grade||'C';
+      const nm=(e.kind==='bottom'?'底部信号':'顶部信号');
+      const rr=(e.ret!=null?`　T+${g.hold||20} ${e.ret>0?'+':''}${fmt(e.ret)}%`:'');
+      return `<div style="margin-top:4px"><b style="color:${GCOL[gg]}">${gg} 级</b> ${nm}
+              · ${(GWHY[e.kind]||{})[gg]||''}${rr}</div>`;
+    }).join('');
     tip.innerHTML=`<b>${g.dates[i]}</b><br>`
       + (g.smdOn ? `20日均 <b>${fmt(g.sc[i],1)}</b>　原始 ${fmt(g.raw[i],1)}`
                  : `情绪分值 <b>${fmt(g.sc[i],1)}</b>`)
-      + `<br>指数 ${g.close[i]}`;
+      + `<br>指数 ${g.close[i]}` + evTxt;
   });
   svg.addEventListener('mouseleave',()=>{
     document.getElementById('hover').style.display='none';
@@ -599,69 +399,9 @@ function drawChart(){
 }
 
 
-/* ---------- tables ---------- */
-const GC={A:['A 高置信','#7ee787'],B:['B 中','#e3b341'],C:['C 低','#8b949e']};
-function gbadge(r){
-  const g=r.grade; if(!g||!GC[g]) return '';
-  const [t,c]=GC[g];
-  const why = r.kind==='bottom'
-    ? (g==='A'?'估值已投降 + 全场共振':g==='B'?'只满足其中一个确认层':'两个确认层都不满足')
-    : (g==='A'?'杠杆已挤满':'杠杆没挤满');
-  return `<span class="tag" style="background:${c}22;color:${c};border:1px solid ${c}66" title="${why}">${t}</span>`;
-}
-function gdist(rows){
-  const c={A:0,B:0,C:0}; rows.forEach(r=>{if(r.grade&&c[r.grade]!==undefined)c[r.grade]++;});
-  return ['A','B','C'].map(g=>{
-    const [t,col]=GC[g];
-    return `<span style="color:${c[g]?col:'#4b5563'};margin-right:10px">${g} <b>${c[g]}</b></span>`;
-  }).join('');
-}
-function table(rows,kind){
-  const only = (kind==='bottom'?document.getElementById('fbot'):document.getElementById('ftop'));
-  if(only && only.checked) rows=rows.filter(r=>r.grade==='A');
-  if(!rows.length) return '<div class="empty">该板块近3年没有符合当前筛选的信号</div>';
-  const riskLab = kind==='bottom'?'最深回撤':'最大踏空';
-  const extra = kind==='bottom'
-    ? '<th>昨日分</th><th>确认层</th>'
-    : '<th>确认层</th><th>T+60 涨跌</th>';
-  let h=`<table><thead><tr><th>等级</th><th>信号日</th><th>当日分</th>${extra}<th>T+${HOLD} 涨跌</th>
-         <th>${riskLab}</th><th>判定</th></tr></thead><tbody>`;
-  rows.forEach(r=>{
-    const up=r.ret>0;
-    let verdict, cls;
-    if(r.ok){verdict='✔ 成立'; cls='ok';}
-    else if(kind==='bottom' && r.notrap){verdict='△ 未套牢（走平）'; cls='yel';}
-    else {verdict='✘ 未成立'; cls='no';}
-    const pv = kind==='bottom' ? `<td style="color:#7ee787">${fmt(r.prev,1)}</td>` : '';
-    let det='', tp2='';
-    if(kind==='bottom'){
-      const c1 = r.resonant
-        ? `<span style="color:#7ee787" title="信号日收盘后还有 ${r.reso-1} 个别的板块也在 ≤0">共振✔${r.reso}</span>`
-        : `<span style="color:#8b949e" title="信号日只有本板块还在 ≤0，其余板块已回升">共振✘</span>`;
-      const c2 = (r.bna===null||r.bna===undefined) ? '<span style="color:#8b949e">估值—</span>'
-        : (r.capit
-          ? `<span style="color:#7ee787" title="破净股占比处于近一年 ${r.bna} 分位（≥${SUM.bna_min}）">估值✔${r.bna}</span>`
-          : `<span style="color:#8b949e" title="破净股占比仅处于近一年 ${r.bna} 分位（&lt;${SUM.bna_min}）">估值✘${r.bna}</span>`);
-      det = `<td style="white-space:nowrap">${c1}　${c2}</td>`;
-    } else {
-      const c3 = (r.mg===null||r.mg===undefined) ? '<span style="color:#8b949e">杠杆—</span>'
-        : (r.frenzy
-          ? `<span style="color:#f85149" title="融资余额处于近一年 ${r.mg} 分位（≥${SUM.mg_min}）= 杠杆已挤满">杠杆✔${r.mg}</span>`
-          : `<span style="color:#8b949e" title="融资余额仅处于近一年 ${r.mg} 分位（&lt;${SUM.mg_min}）= 不是杠杆顶">杠杆✘${r.mg}</span>`);
-      det = `<td style="white-space:nowrap">${c3}</td>`;
-      tp2 = `<td class="${r.ret60<0?'dn':'up'}">${r.ret60==null?'—':(r.ret60>0?'+':'')+fmt(r.ret60)+'%'}</td>`;
-    }
-    h+=`<tr><td>${gbadge(r)}</td><td>${r.date}</td><td>${fmt(r.score,1)}</td>${pv}${det}${tp2}
-        <td class="${up?'up':'dn'}">${r.ret>0?'+':''}${fmt(r.ret)}%</td>
-        <td>${r.risk>0?'+':''}${fmt(r.risk)}%</td>
-        <td class="${cls}">${verdict}</td></tr>`;
-  });
-  return h+'</tbody></table>';
-}
-
 /* ---------- render ---------- */
 function render(){
-  const B=DATA[cur], S=SUM.per[cur];
+  const B=DATA[cur];
   const v=B.score[B.score.length-1];
   const [txt,col]=state(v);
   document.getElementById('bname').textContent=B.name+'　'+B.desc;
@@ -680,66 +420,23 @@ function render(){
      <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>${smTxt}`;
   document.getElementById('mk').style.left=Math.max(0,Math.min(100,(v+30)/160*100))+'%';
   drawChart();
-  document.getElementById('tbot').innerHTML=table(B.bottom,'bottom');
-  document.getElementById('ttop').innerHTML=table(B.top,'top');
 
-  const bt=S.bottom, tp=S.top;
-  const mn=Math.min(...B.score), mx=Math.max(...B.score);
-  document.getElementById('stats').innerHTML=`
-    <div class="stat"><div class="v" style="color:var(--grn)">${bt.ok}/${bt.n}</div>
-      <div class="k">底部信号命中（T+20 收益&gt;0 且回撤≥-3%）</div>
-      <div class="n">随机基线 ${S.base_bottom}%　·　实时可执行</div></div>
-    <div class="stat"><div class="v" style="color:#7ee787">${bt.nt}/${bt.n}</div>
-      <div class="k">买入后未被套超 3%</div>
-      <div class="n">入场规则：昨 ≤ ${SUM.entry_thr} 且今日回升</div></div>
-    <div class="stat"><div class="v" style="color:var(--red)">${tp.ok}/${tp.n}</div>
-      <div class="k">顶部信号命中（实时首次破 100）</div>
-      <div class="n">实测无效，仅供参考　·　基线 ${S.base_top}%</div></div>
-    <div class="stat"><div class="v" style="color:#7ee787">${S.capit.n}/${bt.n}</div>
-      <div class="k">其中「估值已投降」信号（破净分位 ≥${SUM.bna_min}）</div>
-      <div class="n">命中 ${S.capit.ok}/${S.capit.n}　·　T+60 盈利 ${S.capit.win60}/${S.capit.n60}</div></div>
-    <div class="stat"><div class="v" style="color:#7ee787">${S.reso.n}/${bt.n}</div>
-      <div class="k">其中「全场共振」信号（≥${SUM.reso_min} 个板块同在 ≤0）</div>
-      <div class="n">命中 ${S.reso.ok}/${S.reso.n}　·　T+60 盈利 ${S.reso.win60}/${S.reso.n60}</div></div>
-    <div class="stat"><div class="v">${mn.toFixed(0)} ~ ${mx.toFixed(0)}</div>
-      <div class="k">3年分值区间</div>
-      <div class="n">最低 ${B.dates[B.score.indexOf(mn)]}　最高 ${B.dates[B.score.indexOf(mx)]}</div></div>
-    <div class="stat"><div class="v" style="font-size:20px">${gdist(B.bottom)}</div>
-      <div class="k">本板块信号置信等级分布</div>
-      <div class="n">A = 估值投降+全场共振　·　勾「只看 A 级」可筛选</div></div>`;
+  // 最近一次信号（信号表已移除，这里保留最关键的回溯信息）
+  const lastSig=[...B.bottom,...B.top].sort((p,q)=>p.date<q.date?1:-1)[0];
+  const lsEl=document.getElementById('lsig');
+  if(lsEl){
+    const g0=lastSig?(lastSig.grade||'C'):'C';
+    lsEl.innerHTML = lastSig
+      ? `最近信号　<b style="color:${GCOL[g0]}">${g0} 级</b>
+         ${lastSig.kind==='bottom'?'底部':'顶部'}　${lastSig.date}
+         　${(GWHY[lastSig.kind]||{})[g0]||''}　T+${HOLD}
+         <b class="${lastSig.ret>0?'up':'dn'}">${lastSig.ret>0?'+':''}${fmt(lastSig.ret)}%</b>`
+      : '<span style="color:var(--dim)">近3年无信号</span>';
+  }
 }
-
-/* ---------- 全局统计 ---------- */
-(function(){
-  const t=SUM.total;
-  const pct=(a,b)=>b?(a/b*100).toFixed(0)+'%':'--';
-  document.getElementById('w1').textContent=`${t.b_ok}/${t.b_n}（${pct(t.b_ok,t.b_n)}）`;
-  document.getElementById('w2').textContent=`${t.b_nt}/${t.b_n}（${pct(t.b_nt,t.b_n)}）`;
-  document.getElementById('w3').textContent=`${t.t_ok}/${t.t_n}（${pct(t.t_ok,t.t_n)}）`;
-  const w6=document.getElementById('w6');
-  if(w6){
-    if(SUM.bna_latest==null) w6.textContent='暂无数据';
-    else w6.textContent=`${SUM.bna_latest}（${SUM.bna_date}）`+
-      (SUM.bna_latest>=SUM.bna_min?' —— 已处于投降区':' —— 未达投降区');
-  }
-  const w7=document.getElementById('w7'), w8=document.getElementById('w8');
-  if(w7) w7.textContent=`${t.c_win60}/${t.c_n60}（${pct(t.c_win60,t.c_n60)}）`;
-  if(w8) w8.textContent=`${t.rc_win60}/${t.rc_n60}（${pct(t.rc_win60,t.rc_n60)}）`;
-  const w9=document.getElementById('w9');
-  if(w9){
-    if(SUM.mg_latest==null) w9.textContent='暂无数据';
-    else w9.textContent=`${SUM.mg_latest}（${SUM.mg_latest>=SUM.mg_min?'已达挤满区，顶部信号可信度上升':'未达挤满区，破 100 大概率只是急涨'}）`;
-  }
-  let rb=0,rm=0,n=0;
-  Object.values(DATA).forEach(B=>B.bottom.forEach(e=>{rb+=e.ret;rm+=e.risk;n++;}));
-  if(n){document.getElementById('w4').textContent=`+${(rb/n).toFixed(2)}%`;
-        document.getElementById('w5').textContent=`${(rm/n>=0?'+':'')}${(rm/n).toFixed(2)}%`;}
-})();
 
 document.getElementById('ovl').onchange=drawChart;
 document.getElementById('smd').onchange=()=>{render();};   // 卡片口径提示也要跟着变
-document.getElementById('fbot').onchange=()=>{document.getElementById('tbot').innerHTML=table(DATA[cur].bottom,'bottom');};
-document.getElementById('ftop').onchange=()=>{document.getElementById('ttop').innerHTML=table(DATA[cur].top,'top');};
 window.addEventListener('resize',()=>{measure();drawChart();});
 measure(); render();
 </script>
