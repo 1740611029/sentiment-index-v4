@@ -6,161 +6,211 @@
 <title>A股板块恐贪情绪指数 · SENTI-1</title>
 <style>
   :root{
-    --bg:#0b0e13; --card:#141a23; --card2:#1a222c; --bd:#232c38; --bd2:#2c3745;
-    --tx:#e6edf3; --mut:#8b949e; --dim:#5f6a78;
-    --red:#f85149; --grn:#3fb950; --blu:#58a6ff; --yel:#e3b341; --pur:#bc8cff;
-    --r:14px; --r2:10px;
+    /* 面：越"高"越亮；冷调石板灰，刻意避开纯黑与纯灰 */
+    --bg:#070A0F; --card:#0E131A; --card2:#131A23; --card3:#1A222D;
+    --bd:rgba(148,171,200,.10); --bd2:rgba(148,171,200,.18); --bd3:rgba(148,171,200,.28);
+    /* 字：近白但不刺眼，三级灰阶 */
+    --tx:#E7EDF6; --mut:#96A5BA; --dim:#7A8AA1;
+    /* 语义色：红涨绿跌（A 股口径，勿改） */
+    --red:#FF5C5C; --grn:#3ECF8E; --blu:#5FA8FF; --yel:#F5B544; --pur:#A78BFA; --cyn:#4FD1E8;
+    --r:16px; --r2:11px; --r3:8px;
+    --ease:cubic-bezier(.22,1,.36,1);
+    --sh:0 1px 0 rgba(255,255,255,.045) inset, 0 20px 46px -32px rgba(0,0,0,.95);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
-  body{background:var(--bg);color:var(--tx);
-       font-family:-apple-system,"Segoe UI","Microsoft YaHei",Roboto,sans-serif;
-       font-size:14px;line-height:1.6;padding:0 0 56px}
+  body{
+       background:
+         radial-gradient(1100px 520px at 10% -12%, rgba(95,168,255,.10), transparent 62%),
+         radial-gradient(900px 420px at 88% -6%, rgba(62,207,142,.05), transparent 60%),
+         var(--bg);
+       background-attachment:fixed;
+       color:var(--tx);
+       font-family:"Inter","Inter var",-apple-system,"Segoe UI",Roboto,
+                   "PingFang SC","Microsoft YaHei",sans-serif;
+       font-size:14px;line-height:1.6;padding:0 0 56px;
+       font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
   body::before{content:"";display:block;height:2px;
-       background:linear-gradient(90deg,#1f6feb,#58a6ff 28%,#3fb950 62%,#f85149)}
+       background:linear-gradient(90deg,#2C6BD6,#5FA8FF 24%,#4FD1E8 46%,#3ECF8E 66%,
+                                  #F5B544 84%,#FF5C5C)}
   .wrap{max-width:1660px;margin:0 auto;padding:0 20px}
-  ::selection{background:#1f6feb55;color:#fff}
+  ::selection{background:rgba(95,168,255,.26);color:#fff}
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-track{background:var(--bg)}
-  ::-webkit-scrollbar-thumb{background:#2a3542;border-radius:6px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb{background:#1E2733;border-radius:6px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:#28323F}
 
   /* ---------- header ---------- */
   header{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
          flex-wrap:wrap;border-bottom:1px solid var(--bd);
-         padding:22px 0 16px;margin-bottom:18px}
-  .title{font-size:21px;font-weight:650;letter-spacing:.2px;line-height:1.3}
-  .title::before{content:"";display:inline-block;width:4px;height:19px;border-radius:2px;
-         background:linear-gradient(180deg,#58a6ff,#1f6feb);margin-right:11px;vertical-align:-2px}
+         padding:26px 0 18px;margin-bottom:16px}
+  .title{font-size:22px;font-weight:600;letter-spacing:-.2px;line-height:1.3;color:#F2F6FB}
+  .title::before{content:"";display:inline-block;width:3px;height:20px;border-radius:2px;
+         background:linear-gradient(180deg,var(--blu),#2C6BD6);margin-right:12px;vertical-align:-3px}
   .title span{color:var(--blu)}
-  .sub{color:var(--mut);font-size:12px;margin-top:6px;text-align:right;line-height:1.8}
+  .sub{color:var(--dim);font-size:12px;margin-top:7px;text-align:right;line-height:1.85}
 
   /* ---------- mode switch ---------- */
-  .modes{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:12px}
-  .mode{flex:1 1 320px;min-width:280px;background:var(--card);border:1px solid var(--bd);
-        border-radius:12px;padding:12px 16px;cursor:pointer;text-align:left;
-        font-family:inherit;color:var(--mut);transition:.15s}
-  .mode:hover{border-color:var(--bd2);background:var(--card2)}
-  .mode .mn{font-size:14px;font-weight:650;color:var(--tx);display:flex;align-items:center;gap:8px}
-  .mode .mn::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim);flex:none}
-  .mode .md{font-size:12px;margin-top:5px;line-height:1.65}
-  .mode.on{border-color:#1f6feb;background:#16233a;box-shadow:0 2px 14px -6px rgba(31,111,235,.6)}
-  .mode.on .mn::before{background:var(--blu);box-shadow:0 0 0 3px rgba(88,166,255,.25)}
+  .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+         gap:12px;margin-bottom:14px}
+  .mode{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--bd);
+        border-radius:var(--r2);padding:14px 16px 14px 19px;cursor:pointer;text-align:left;
+        font-family:inherit;color:var(--mut);
+        transition:border-color .18s var(--ease),background .18s var(--ease),
+                   transform .18s var(--ease),box-shadow .18s var(--ease)}
+  .mode::before{content:"";position:absolute;left:0;top:15px;bottom:15px;width:2px;
+        border-radius:0 2px 2px 0;background:transparent;transition:background .18s var(--ease)}
+  .mode:hover{border-color:var(--bd2);background:var(--card2);transform:translateY(-1px)}
+  .mode .mn{font-size:14px;font-weight:600;color:var(--tx);
+        display:flex;align-items:center;gap:9px;letter-spacing:-.1px}
+  .mode .mn::before{content:"";width:6px;height:6px;border-radius:50%;
+        background:#39455A;flex:none;transition:.18s var(--ease)}
+  .mode .md{font-size:12px;margin-top:6px;line-height:1.65;color:var(--dim)}
+  .mode.on{border-color:rgba(95,168,255,.40);
+        background:linear-gradient(180deg,rgba(95,168,255,.10),rgba(95,168,255,.02) 72%),var(--card);
+        box-shadow:0 10px 28px -20px rgba(95,168,255,.95)}
+  .mode.on::before{background:var(--blu)}
+  .mode.on .mn{color:#DCEBFF}
+  .mode.on .md{color:var(--mut)}
+  .mode.on .mn::before{background:var(--blu);box-shadow:0 0 0 3px rgba(95,168,255,.20)}
   .mode:focus-visible{outline:2px solid var(--blu);outline-offset:2px}
 
   /* ---------- tabs ---------- */
-  .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px;
-        background:rgba(20,26,35,.92);border:1px solid var(--bd);border-radius:12px;padding:5px;
-        position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
-        -webkit-backdrop-filter:blur(10px)}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;
+        background:rgba(14,19,26,.82);border:1px solid var(--bd);border-radius:12px;padding:4px;
+        position:sticky;top:0;z-index:20;backdrop-filter:blur(14px) saturate(140%);
+        -webkit-backdrop-filter:blur(14px) saturate(140%);
+        box-shadow:0 10px 26px -22px rgba(0,0,0,1)}
   .tab{background:none;border:0;color:var(--mut);
-       padding:8px 17px;border-radius:8px;cursor:pointer;font-size:13.5px;
-       font-family:inherit;transition:.15s;white-space:nowrap}
-  .tab:hover{background:#1e2732;color:var(--tx)}
-  .tab.on{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;
-          box-shadow:0 2px 12px rgba(31,111,235,.4)}
+       padding:8px 16px;border-radius:var(--r3);cursor:pointer;font-size:13.5px;
+       font-family:inherit;white-space:nowrap;letter-spacing:-.05px;
+       transition:color .16s var(--ease),background .16s var(--ease),box-shadow .16s var(--ease)}
+  .tab:hover{background:var(--card3);color:var(--tx)}
+  .tab.on{background:linear-gradient(180deg,rgba(95,168,255,.22),rgba(95,168,255,.10));
+          box-shadow:inset 0 0 0 1px rgba(95,168,255,.45);color:#DCEBFF;font-weight:600}
   .tab:focus-visible,.rng button:focus-visible{outline:2px solid var(--blu);outline-offset:2px}
 
   /* ---------- layout ---------- */
-  .hero{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px;
+  .hero{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;
         margin-bottom:18px;align-items:stretch}
-  .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:20px;
-        box-shadow:0 10px 28px -18px rgba(0,0,0,.7)}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.028),rgba(255,255,255,0) 42%),
+                   var(--card);
+        border:1px solid var(--bd);border-radius:var(--r);padding:22px;box-shadow:var(--sh)}
   /* 左卡内容比右卡（图表）矮：撑满同高后，让「最近信号」沉底，不留大片空白 */
   .hero > .card:first-child{display:flex;flex-direction:column}
   .hero > .card:first-child .barlab{margin-bottom:14px}
   .hero > .card:first-child .lsig{margin-top:auto}
 
   /* ---------- score panel ---------- */
-  .lab{color:var(--mut);font-size:12px;letter-spacing:.5px;
+  .lab{color:var(--mut);font-size:12px;font-weight:600;letter-spacing:.06em;
        display:flex;align-items:center;gap:8px}
-  .lab::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blu);flex:none}
-  .big{font-size:56px;font-weight:700;line-height:1.05;margin:8px 0 2px;
-       font-variant-numeric:tabular-nums;letter-spacing:-1px}
-  .big::after{content:"分";font-size:15px;font-weight:500;color:var(--dim);
-       margin-left:6px;letter-spacing:0;vertical-align:6px}
+  .lab::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--blu);
+       flex:none;box-shadow:0 0 0 3px rgba(95,168,255,.16)}
+  .big{font-size:clamp(44px,3.6vw,60px);font-weight:600;line-height:1.02;
+       margin:10px 0 0 -1px;font-variant-numeric:tabular-nums;letter-spacing:-2px;
+       text-shadow:0 0 34px rgba(0,0,0,.55)}
+  .big::after{content:"分";font-size:14px;font-weight:500;color:var(--dim);
+       margin-left:7px;letter-spacing:0;vertical-align:5px;text-shadow:none}
   .tag{display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;
-       font-size:12px;font-weight:600;margin-top:8px;letter-spacing:.2px}
-  .chg{margin-top:14px;display:grid;gap:8px}
-  .chg div{background:var(--card2);border:1px solid var(--bd);border-radius:var(--r2);
-           padding:9px 12px;font-size:12px;color:var(--mut);
+       font-size:12px;font-weight:600;margin-top:11px;letter-spacing:.01em}
+  /* 不再用"盒中盒"：改成发丝分隔的读数行 */
+  .chg{margin-top:16px;display:grid;border-top:1px solid var(--bd)}
+  .chg div{background:none;border:0;border-bottom:1px solid var(--bd);
+           padding:10px 2px;font-size:12px;color:var(--mut);
            display:flex;justify-content:space-between;align-items:center;gap:10px}
-  .chg b{font-variant-numeric:tabular-nums;font-size:13px}
+  .chg div:last-child{border-bottom:0}
+  .chg b{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:var(--tx)}
 
-  .bar{position:relative;height:12px;margin-top:18px;border-radius:6px;overflow:visible;
-       background:linear-gradient(90deg,#2b7a4b 0%,#2f6f8f 26%,#8a7a2e 62%,#a33b34 100%);
-       box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
-  .bar .mk{position:absolute;top:-5px;width:3px;height:22px;background:#fff;
-           border-radius:2px;box-shadow:0 0 0 2px var(--card),0 0 10px rgba(255,255,255,.35)}
-  .bar .tk{position:absolute;top:-3px;width:1px;height:18px;background:rgba(230,237,243,.45)}
-  .barscale{position:relative;height:18px;margin-top:7px}
+  .bar{position:relative;height:10px;margin-top:20px;border-radius:999px;overflow:visible;
+       background:linear-gradient(90deg,#26794F 0%,#2C6E8A 26%,#7C6A2E 62%,#A63A36 82%,#C33B33 100%);
+       box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 2px 8px -4px rgba(0,0,0,.8)}
+  .bar .mk{position:absolute;top:-6px;width:3px;height:22px;background:#fff;
+           border-radius:2px;box-shadow:0 0 0 2px var(--card),0 0 12px rgba(255,255,255,.45);
+           transition:left .35s var(--ease)}
+  .bar .tk{position:absolute;top:-4px;width:1px;height:18px;background:rgba(231,237,246,.30)}
+  .barscale{position:relative;height:18px;margin-top:9px}
   .barscale span{position:absolute;transform:translateX(-50%);font-size:12px;
                  color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
   .barscale span:first-child{transform:none}
   .barscale span:last-child{transform:translateX(-100%)}
-  .barlab{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}
+  .barlab{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;
+          letter-spacing:.04em}
 
-  .lsig{margin-top:14px;padding:11px 13px;background:var(--card2);
-        border:1px solid var(--bd);border-radius:var(--r2);
+  .lsig{margin-top:16px;padding-top:13px;border-top:1px solid var(--bd);
         font-size:12px;color:var(--mut);line-height:1.85}
 
   /* ---------- chart panel ---------- */
-  .chartcard{padding:16px 18px 14px}
+  .chartcard{padding:18px 20px 14px;display:flex;flex-direction:column}
   .chead{display:flex;justify-content:space-between;align-items:center;
-         margin-bottom:10px;flex-wrap:wrap;gap:10px}
-  .ctitle{font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px}
-  .ctitle::before{content:"";width:3px;height:14px;border-radius:2px;background:var(--blu)}
-  .rng{display:flex;flex-wrap:wrap;gap:3px;background:var(--card2);
+         margin-bottom:12px;flex-wrap:wrap;gap:10px;
+         padding-bottom:12px;border-bottom:1px solid var(--bd)}
+  .ctitle{font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px;
+          letter-spacing:-.1px;color:#F2F6FB}
+  .ctitle::before{content:"";width:3px;height:15px;border-radius:2px;
+          background:linear-gradient(180deg,var(--blu),#2C6BD6)}
+  .rng{display:flex;flex-wrap:wrap;gap:2px;background:var(--card2);
        border:1px solid var(--bd);border-radius:9px;padding:3px}
   .rng button{background:none;border:0;color:var(--dim);font-size:12px;font-weight:500;
-       padding:5px 11px;border-radius:7px;cursor:pointer;font-family:inherit;transition:.15s}
-  .rng button:hover{color:var(--tx);background:#212b36}
-  .rng button.on{background:var(--blu);color:#071018;font-weight:600}
+       padding:5px 11px;border-radius:6px;cursor:pointer;font-family:inherit;
+       transition:color .16s var(--ease),background .16s var(--ease),box-shadow .16s var(--ease)}
+  .rng button:hover{color:var(--tx);background:var(--card3)}
+  .rng button.on{background:rgba(95,168,255,.18);color:#CBDEFF;font-weight:600;
+       box-shadow:inset 0 0 0 1px rgba(95,168,255,.40)}
 
   .opts{display:flex;gap:10px;align-items:center;color:var(--mut);font-size:12px;
-        margin-bottom:6px;flex-wrap:wrap}
+        margin-bottom:8px;flex-wrap:wrap}
   .opts label{cursor:pointer;display:inline-flex;align-items:center;gap:7px;
         padding:5px 11px;background:var(--card2);border:1px solid var(--bd);
-        border-radius:8px;user-select:none;transition:.15s}
-  .opts label:hover{border-color:var(--bd2);color:var(--tx)}
-  .opts input{accent-color:#58a6ff;width:13px;height:13px;margin:0}
+        border-radius:var(--r3);user-select:none;
+        transition:border-color .16s var(--ease),color .16s var(--ease),background .16s var(--ease)}
+  .opts label:hover{border-color:var(--bd2);color:var(--tx);background:var(--card3)}
+  .opts input{accent-color:var(--blu);width:13px;height:13px;margin:0}
   #rnginfo{color:var(--dim)}
-  #plot{width:100%;border-radius:8px}
+  /* 实测命中率是关键读数：给它一个 chip，与旁边的辅助文字拉开层级 */
+  #modestat{color:var(--mut);padding:5px 12px;background:var(--card2);
+    border:1px solid var(--bd);border-radius:var(--r3);line-height:1.5}
+  #plot{width:100%;border-radius:10px;margin-top:2px}
 
-  .legend{display:flex;gap:8px 10px;flex-wrap:wrap;color:var(--mut);font-size:12px;
-          padding:10px 0 2px}
+  .legend{display:flex;gap:7px 8px;flex-wrap:wrap;color:var(--mut);font-size:12px;
+          padding:12px 0 2px}
   .legend > span{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;
-          background:var(--card2);border:1px solid var(--bd);border-radius:999px;line-height:1.6}
+          background:rgba(148,171,200,.05);border:1px solid var(--bd);
+          border-radius:999px;line-height:1.6}
   .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;flex:none}
 
-  .gnote{margin-top:12px;background:var(--card2);border:1px solid var(--bd);
+  .gnote{margin-top:14px;background:var(--card2);border:1px solid var(--bd);
          border-radius:var(--r2);overflow:hidden}
-  .gnote summary{cursor:pointer;padding:10px 13px;font-size:12.5px;color:var(--tx);
-         font-weight:600;list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+  .gnote summary{cursor:pointer;padding:11px 14px;font-size:12.5px;color:var(--tx);
+         font-weight:600;list-style:none;display:flex;align-items:center;gap:9px;user-select:none;
+         transition:background .16s var(--ease)}
+  .gnote summary:hover{background:var(--card3)}
   .gnote summary::-webkit-details-marker{display:none}
-  .gnote summary::before{content:"";width:6px;height:6px;border-radius:50%;
-         background:var(--yel);flex:none}
-  .gnote summary::after{content:"▾";margin-left:auto;color:var(--dim);font-size:12px;transition:.2s}
+  .gnote summary::before{content:"";width:5px;height:5px;border-radius:50%;
+         background:var(--yel);flex:none;box-shadow:0 0 0 3px rgba(245,181,68,.16)}
+  .gnote summary::after{content:"▾";margin-left:auto;color:var(--dim);font-size:12px;
+         transition:transform .2s var(--ease)}
   .gnote[open] summary::after{transform:rotate(180deg)}
-  .gbody{padding:11px 13px 12px;font-size:12px;color:var(--mut);line-height:1.85;
+  .gbody{padding:12px 14px 14px;font-size:12px;color:var(--mut);line-height:1.9;
          border-top:1px solid var(--bd)}
-  .gbody b.k{color:var(--tx)}
+  .gbody b.k{color:var(--tx);font-weight:600}
 
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;
      padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
-  td{padding:8px 10px;border-bottom:1px solid #1c232c;font-variant-numeric:tabular-nums}
+  td{padding:8px 10px;border-bottom:1px solid var(--bd);font-variant-numeric:tabular-nums}
   tr:last-child td{border-bottom:none}
   .ok{color:var(--grn)} .no{color:var(--red)} .yel{color:var(--yel)}
   .up{color:var(--red)} .dn{color:var(--grn)}
   .empty{color:var(--dim);font-size:13px;padding:16px 10px}
 
-  .foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--bd);
+  .foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--bd);
         color:var(--dim);font-size:12px;display:flex;justify-content:space-between;
         gap:16px;flex-wrap:wrap}
 
-  #tip{position:fixed;pointer-events:none;background:rgba(11,15,20,.97);border:1px solid #33404f;
-       border-radius:10px;padding:10px 13px;font-size:12px;display:none;z-index:99;
-       box-shadow:0 10px 30px rgba(0,0,0,.6);white-space:nowrap;line-height:1.75}
+  #tip{position:fixed;pointer-events:none;background:rgba(10,14,20,.96);border:1px solid var(--bd2);
+       border-radius:12px;padding:11px 14px;font-size:12px;display:none;z-index:99;
+       box-shadow:0 18px 44px -18px rgba(0,0,0,.95);white-space:nowrap;line-height:1.8;
+       backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 
   @media(max-width:1080px){
     .hero{grid-template-columns:1fr}
@@ -170,7 +220,11 @@
     .wrap{padding:0 12px}
     .tabs{position:static}
     .big{font-size:46px}
-    .card{padding:16px}
+    .card{padding:18px}
+    .chartcard{padding:16px 14px 12px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms !important;animation-duration:.01ms !important}
   }
 </style>
 </head>
@@ -260,7 +314,7 @@ MODES.forEach(m=>{
 /* 当前模式下取哪条曲线 / 哪些信号 / 阈值 / 持有期 */
 const SW = () => SUM.swing || {thr:22, hold:7, cool:4, tol:3};
 const SR   = B => MODE==='swing' ? B.swing : B.score;
-const EVS  = B => MODE==='swing' ? (B.swing_events||[]) : [...B.bottom,...B.top];
+const EVS  = B => MODE==='swing' ? (B.swing_events||[]) : B.bottom;
 const THR  = () => MODE==='swing' ? SW().thr : (SUM.entry_thr ?? 0);
 const HOLD2= () => MODE==='swing' ? SW().hold : HOLD;
 
@@ -280,27 +334,26 @@ const fmt=(n,d=2)=>(n===null||isNaN(n))?'--':Number(n).toFixed(d);
 function state(v){
   if(MODE==='swing'){
     const t=THR();
-    if(v<=t)     return ['超卖 · 已达小波段入场阈值','#7ee787'];
-    if(v<30)     return ['偏冷','#4ac26b'];
-    if(v<45)     return ['偏冷','#79c0ff'];
-    if(v<60)     return ['中性','#8b949e'];
-    if(v<75)     return ['偏热','#e3b341'];
-    return ['过热 · 短期涨得快','#f85149'];
+    if(v<=t)     return ['超卖 · 已达小波段入场阈值','#6FE39C'];
+    if(v<30)     return ['偏冷','#5FCE96'];
+    if(v<45)     return ['偏冷','#7FB6FF'];
+    if(v<60)     return ['中性','#96A5BA'];
+    if(v<75)     return ['偏热','#F5B544'];
+    return ['过热 · 短期涨得快','#FF5C5C'];
   }
-  if(v<=(SUM.entry_thr??0)) return ['极度恐慌 · 已达入场阈值','#7ee787'];
-  if(v<0)   return ['极度恐慌 · 底部区','#3fb950'];
-  if(v<20)  return ['恐慌','#4ac26b'];
-  if(v<40)  return ['偏冷','#79c0ff'];
-  if(v<60)  return ['中性','#8b949e'];
-  if(v<80)  return ['偏热','#e3b341'];
-  if(v<=100)return ['贪婪','#ff8c5a'];
-  return ['极度贪婪 · 顶部区','#f85149'];
+  if(v<=(SUM.entry_thr??0)) return ['极度恐慌 · 已达入场阈值','#6FE39C'];
+  if(v<0)   return ['极度恐慌 · 底部区','#3ECF8E'];
+  if(v<20)  return ['恐慌','#5FCE96'];
+  if(v<40)  return ['偏冷','#7FB6FF'];
+  if(v<60)  return ['中性','#96A5BA'];
+  if(v<80)  return ['偏热','#F5B544'];
+  if(v<=100)return ['贪婪','#FF9A6B'];
+  return ['极度贪婪 · 顶部区','#FF5C5C'];
 }
 
 /* 置信等级配色与释义（全页统一口径） */
-const GCOL={S:'#58d7ff',A:'#7ee787',B:'#e3b341',C:'#8b949e'};
-const GWHY={bottom:{A:'估值投降 + 全场共振',B:'只满足其中一个确认层',C:'两个确认层都不满足'},
-            top:{A:'杠杆已挤满',C:'杠杆没挤满'}};
+const GCOL={S:'#4FD1E8',A:'#6FE39C',B:'#F5B544',C:'#96A5BA'};
+const GWHY={bottom:{A:'估值投降 + 全场共振',B:'只满足其中一个确认层',C:'两个确认层都不满足'}};
 /* SWING 只有"共振强弱"这一个确认层：当天还有几个别的板块也超卖 */
 const GWHY2={S:'全场共振 ≥5 个板块（实测 87%）',A:'共振 4 个板块（实测 79%）',
              B:'共振 2~3 个板块',C:'仅本板块超卖'};
@@ -373,19 +426,20 @@ function drawChart(){
   // 溢出区 / 超卖区
   if(SWG){
     // SWING：分值越低越超卖 → 阈值**以下**是入场区
-    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3fb950" opacity=".08"/>`);
+    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3ECF8E" opacity=".09"/>`);
   }else{
-    if(yMin<0) P.push(`<rect x="${L}" y="${y(0)}" width="${PW}" height="${BOTY-y(0)}" fill="#3fb950" opacity=".07"/>`);
-    if(yMax>100) P.push(`<rect x="${L}" y="${TOPY}" width="${PW}" height="${y(100)-TOPY}" fill="#f85149" opacity=".09"/>`);
+    if(yMin<0) P.push(`<rect x="${L}" y="${y(0)}" width="${PW}" height="${BOTY-y(0)}" fill="#3ECF8E" opacity=".07"/>`);
+    if(yMax>100) P.push(`<rect x="${L}" y="${TOPY}" width="${PW}" height="${y(100)-TOPY}" fill="#FF5C5C" opacity=".09"/>`);
   }
   // 网格 + y 轴刻度
   for(let v=Math.ceil(yMin/step)*step; v<=yMax+1e-9; v+=step){
-    P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#242c37" stroke-width="1"/>`);
-    P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#5a6472" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
+    P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#1C2532" stroke-width="1"/>`);
+    P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#7A8AA1" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
   }
+  P.push(`<line x1="${L}" y1="${BOTY}" x2="${L+PW}" y2="${BOTY}" stroke="#28323F" stroke-width="1"/>`);
   // 0 / 100 边界（SENTI-1 的绝对刻度）
   if(!SWG){
-    [[0,'#3fb950','下'],[100,'#f85149','上']].forEach(([v,c,dir])=>{
+    [[0,'#3ECF8E','下'],[100,'#FF5C5C','上']].forEach(([v,c,dir])=>{
       if(v>=yMin&&v<=yMax)
         P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="${c}" stroke-width="1.5" stroke-dasharray="6 4" opacity=".8"/>`);
       else
@@ -395,58 +449,59 @@ function drawChart(){
   // 入场阈值线
   if(T0>=yMin&&T0<=yMax){
     const lab = SWG ? `入场阈值 ${T0}（≤ 即触发）` : `入场阈值 ${T0}`;
-    P.push(`<line x1="${L}" y1="${y(T0)}" x2="${L+PW}" y2="${y(T0)}" stroke="#7ee787"
+    P.push(`<line x1="${L}" y1="${y(T0)}" x2="${L+PW}" y2="${y(T0)}" stroke="#6FE39C"
              stroke-width="1.2" stroke-dasharray="3 3" opacity=".7"/>`);
-    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#7ee787" font-size="10"
+    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#6FE39C" font-size="10"
              text-anchor="end" opacity=".85">${lab}</text>`);
   }
   // 指数收盘
   if(ovl){
     let d='';
     for(let a=i0;a<=i1;a++) d+=(a>i0?'L':'M')+x(a).toFixed(1)+' '+yc(cl[a-i0]).toFixed(1);
-    P.push(`<path d="${d}" fill="none" stroke="#4b5563" stroke-width="1.4" opacity=".75"/>`);
-    P.push(`<text x="${L+PW+8}" y="${yc(chi)+4}" fill="#4b5563" font-size="12">${Math.round(chi)}</text>`);
-    P.push(`<text x="${L+PW+8}" y="${yc(clo)+4}" fill="#4b5563" font-size="12">${Math.round(clo)}</text>`);
+    P.push(`<path d="${d}" fill="none" stroke="#5C6E85" stroke-width="1.4" opacity=".8"/>`);
+    P.push(`<text x="${L+PW+8}" y="${yc(chi)+4}" fill="#7286A0" font-size="12">${Math.round(chi)}</text>`);
+    P.push(`<text x="${L+PW+8}" y="${yc(clo)+4}" fill="#7286A0" font-size="12">${Math.round(clo)}</text>`);
   }
   // 面积 + 主线
   let d='',a2=`M${L} ${BOTY} `;
   for(let a=i0;a<=i1;a++){const s=x(a).toFixed(1)+' '+y(sc[a-i0]).toFixed(1);d+=(a>i0?'L':'M')+s;a2+=`L${s} `;}
   a2+=`L${L+PW} ${BOTY} Z`;
   P.push(`<defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="#58a6ff" stop-opacity=".28"/>
-    <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>`);
+    <stop offset="0%" stop-color="#5FA8FF" stop-opacity=".30"/>
+    <stop offset="100%" stop-color="#5FA8FF" stop-opacity="0"/></linearGradient></defs>`);
   P.push(`<path d="${a2}" fill="url(#g1)"/>`);
-  P.push(`<path d="${d}" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linejoin="round"/>`);
-  // 信号点：形状/上下位置 = 方向，样式 = 置信等级（A 实心+光环 / B 实心 / C 空心）
+  P.push(`<path d="${d}" fill="none" stroke="#5FA8FF" stroke-width="2" stroke-linejoin="round"/>`);
+  // 信号点：一律是「低点买入」信号，画在曲线下方；样式 = 置信等级
+  // （A 实心+光环 / B 实心 / C 空心。顶部信号已移除，不再有方向之分）
   const evs=EVS(B);
   evs.forEach(e=>{
     const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
     const g=gradeOf(e), col=GCOL[g]||GCOL.C;
-    const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+(e.kind==='bottom'?12:-12);
+    const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+12;
     P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
              stroke="${col}" stroke-width="1" opacity=".5"/>`);
     if(g==='A')
       P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="9.5" fill="none"
                stroke="${col}" stroke-width="1.4" opacity=".9"/>`);
-    const ap=(e.kind==='bottom'?cyc-8:cyc+8).toFixed(1), bs=(e.kind==='bottom'?cyc+5:cyc-5).toFixed(1);
+    const ap=(cyc-8).toFixed(1), bs=(cyc+5).toFixed(1);
     P.push(`<path d="M${cx} ${ap} l-6.5 ${(bs-ap)} l13 0 Z"
              fill="${g==='C'?'none':col}" stroke="${col}" stroke-width="${g==='C'?1.8:1.2}"
              stroke-linejoin="round"/>`);
   });
   // 最新点标注（与左侧卡片同源，避免"对不上"）
   const lx=x(i1), ly=y(sc[N-1]);
-  P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4.5" fill="#58a6ff" stroke="#0e1116" stroke-width="2"/>`);
-  P.push(`<text x="${(lx-8).toFixed(1)}" y="${(ly-11).toFixed(1)}" fill="#58a6ff"
+  P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4.5" fill="#5FA8FF" stroke="#0E131A" stroke-width="2"/>`);
+  P.push(`<text x="${(lx-8).toFixed(1)}" y="${(ly-11).toFixed(1)}" fill="#8FC3FF"
            font-size="12" font-weight="700" text-anchor="end">${fmt(sc[N-1],1)}</text>`);
   // 时间轴
   const nT=Math.min(6,N);
   for(let k=0;k<nT;k++){
     const a=i0+Math.round(k*(N-1)/(nT-1));
     const lab = N<=70 ? dt[a-i0].slice(5) : dt[a-i0].slice(0,7);
-    P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+22}" fill="#5a6472" font-size="12" text-anchor="middle">${lab}</text>`);
+    P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+22}" fill="#7A8AA1" font-size="12" text-anchor="middle">${lab}</text>`);
   }
   // 命中提示
-  P.push(`<rect id="hover" width="1" height="${BOTY-TOPY}" y="${TOPY}" fill="#58a6ff" opacity=".25" style="display:none"/>`);
+  P.push(`<rect id="hover" width="1" height="${BOTY-TOPY}" y="${TOPY}" fill="#5FA8FF" opacity=".25" style="display:none"/>`);
   P.push(`<circle id="hdot" r="4.5" fill="#fff" style="display:none"/>`);
 
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>`;
@@ -469,7 +524,7 @@ function drawChart(){
     const evs2=g.evmap[g.dates[i]]||[];
     const evTxt=evs2.map(e=>{
       const gg=gradeOf(e);
-      const nm=(e.kind==='top'?'顶部信号':(MODE==='swing'?'小波段低点信号':'底部信号'));
+      const nm=(MODE==='swing'?'小波段低点信号':'底部信号');
       const rr=(e.ret!=null?`　T+${g.hold||20} ${e.ret>0?'+':''}${fmt(e.ret)}%`
                            :'　待验证');
       return `<div style="margin-top:4px"><b style="color:${GCOL[gg]}">${gg} 级</b> ${nm}
@@ -489,33 +544,33 @@ function drawChart(){
   // 窗口信息（图上画的就是原始分值，与左侧卡片同一个值）
   const ri=document.getElementById('rnginfo');
   if(ri) ri.innerHTML=`${dt[0]} ~ ${dt[N-1]}　·　${N} 个交易日　·　最新 `
-    +`<b style="color:#79c0ff">${fmt(SR(B)[i1],1)}</b>`
+    +`<b style="color:#9CC7FF">${fmt(SR(B)[i1],1)}</b>`
     +`（与左侧卡片同一个值）`;
 }
 
 /* ---------- 图例 / 等级说明（随模式切换） ---------- */
 const LEGEND_SENTI =
   `<span><i style="background:var(--blu)"></i>情绪分值</span>
-   <span><i style="background:#4b5563"></i>指数收盘（右轴）</span>
+   <span><i style="background:#5C6E85"></i>指数收盘（右轴）</span>
    <span><i style="background:var(--grn)"></i>&lt;0 底部溢出区</span>
-   <span><i style="background:#7ee787"></i>入场阈值线</span>
-   <span><i style="background:var(--red)"></i>&gt;100 顶部溢出区</span>
+   <span><i style="background:#6FE39C"></i>入场阈值线</span>
+   <span><i style="background:var(--red)"></i>&gt;100 过热区（不出信号）</span>
    <span><i style="background:var(--yel)"></i>信号点</span>
    <span style="white-space:nowrap">等级：
-     <b style="color:#7ee787">▲</b>A 高置信（实心+光环）　
-     <b style="color:#e3b341">▲</b>B 中（实心）　
-     <b style="color:#8b949e">△</b>C 低（空心）</span>`;
+     <b style="color:#6FE39C">▲</b>A 高置信（实心+光环）　
+     <b style="color:#F5B544">▲</b>B 中（实心）　
+     <b style="color:#96A5BA">△</b>C 低（空心）</span>`;
 const LEGEND_SWING =
   `<span><i style="background:var(--blu)"></i>SWING 超卖度（越低越超卖）</span>
-   <span><i style="background:#4b5563"></i>指数收盘（右轴）</span>
+   <span><i style="background:#5C6E85"></i>指数收盘（右轴）</span>
    <span><i style="background:var(--grn)"></i>≤ 阈值 入场区</span>
-   <span><i style="background:#7ee787"></i>入场阈值线</span>
+   <span><i style="background:#6FE39C"></i>入场阈值线</span>
    <span><i style="background:var(--yel)"></i>信号点</span>
    <span style="white-space:nowrap">等级＝当天共振板块数：
-     <b style="color:#58d7ff">▲</b>S ≥5（87%）　
-     <b style="color:#7ee787">▲</b>A ≥4（79%）　
-     <b style="color:#e3b341">▲</b>B 2~3　
-     <b style="color:#8b949e">△</b>C 仅自身</span>`;
+     <b style="color:#4FD1E8">▲</b>S ≥5（87%）　
+     <b style="color:#6FE39C">▲</b>A ≥4（79%）　
+     <b style="color:#F5B544">▲</b>B 2~3　
+     <b style="color:#96A5BA">△</b>C 仅自身</span>`;
 
 function renderMeta(){
   const SWG=MODE==='swing', sw=SW();
@@ -525,10 +580,10 @@ function renderMeta(){
   document.getElementById('gbody').innerHTML = SWG
     ? `<b class="k">等级＝当天有几个板块一起超卖</b>（含自己）。共振越强＝越像系统性回调，
          而不是这一个板块自己的问题。实测命中率随共振单调上升（近 3 年 / 含 2021-22 熊市的 5.7 年）：
-         <b style="color:#58d7ff">S</b>（≥5）81% / <b class="k">87%</b>、
-         <b style="color:#7ee787">A</b>（4）78% / 79%、
-         <b style="color:#e3b341">B</b>（2~3）63% / 57%、
-         <b style="color:#8b949e">C</b>（只有自己）＝全样本平均 64% / 60%。
+         <b style="color:#4FD1E8">S</b>（≥5）81% / <b class="k">87%</b>、
+         <b style="color:#6FE39C">A</b>（4）78% / 79%、
+         <b style="color:#F5B544">B</b>（2~3）63% / 57%、
+         <b style="color:#96A5BA">C</b>（只有自己）＝全样本平均 64% / 60%。
          共振 =6（全场 6 个板块同时超卖）两个窗口都是 100%（n=6 / 8）。
          <br><b class="k">重要</b>：共振等级<b class="k">不决定出不出信号</b>，只用来定仓位。
          科创板 2026-08-03 是 B 级、2026-09-14 是 C 级 —— 它们仍会被标出来，
@@ -540,13 +595,15 @@ function renderMeta(){
          随机基线约 <b class="k">${(SUM.swing&&SUM.swing.total)?SUM.swing.total.base:'—'}%</b>。`
     : `<b class="k">等级有什么用</b>：等级<b class="k">不决定出不出信号</b>，它回答的是
          「这次信号有几个独立证据支持」，只用来<b class="k">定仓位</b> ——
-         <b style="color:#7ee787">A</b>：两个确认层都成立（估值已投降 ＋ 多板块共振）→ 证据最足，可正常甚至偏重；
-         <b style="color:#e3b341">B</b>：只成立一个 → 常规仓位；
-         <b style="color:#8b949e">C</b>：两个都没成立 → 置信度回落到全样本平均，建议减半或观望。
+         <b style="color:#6FE39C">A</b>：两个确认层都成立（估值已投降 ＋ 多板块共振）→ 证据最足，可正常甚至偏重；
+         <b style="color:#F5B544">B</b>：只成立一个 → 常规仓位；
+         <b style="color:#96A5BA">C</b>：两个都没成立 → 置信度回落到全样本平均，建议减半或观望。
          <br>两个确认层：<b class="k">估值投降</b>＝破净股占比处于近一年高分位（市场级，管时机）；
          <b class="k">全场共振</b>＝同一天还有别的板块也跌到 ≤0（横截面，管选谁）。
-         近 3 年：<b class="k">A 级 3 个（3/3 命中）、B 级 16 个（14/16）、C 级 0 个</b>；
-         顶部只分 A（杠杆已挤满）／C（没挤满）。`;
+         近 3 年：<b class="k">A 级 3 个（3/3 命中）、B 级 16 个（14/16）、C 级 0 个</b>。
+         <br><b style="color:#FF5C5C">顶部信号已移除</b>：原「首破 100」信号实测 2/9 = 22%，
+         随机基线 40%，p = 0.93，与瞎猜无法区分，所以不再产出任何顶部提示；
+         分值 &gt;100 仍然照画，但只是过热读数，<b class="k">不是卖出信号</b>。`;
 
   // 当前模式的实测命中率（放在图表上方，跟着模式走）
   const ms=document.getElementById('modestat');
@@ -599,10 +656,9 @@ function render(){
   const lsEl=document.getElementById('lsig');
   if(lsEl){
     const g0=lastSig?gradeOf(lastSig):'C';
-    const isTop=lastSig&&lastSig.kind==='top';
     lsEl.innerHTML = lastSig
       ? `最近信号　<b style="color:${GCOL[g0]}">${g0} 级</b>
-         ${SWG?'小波段低点':(isTop?'顶部':'底部')}　${lastSig.date}
+         ${SWG?'小波段低点':'底部'}　${lastSig.date}
          　${whyOf(lastSig,g0)}　T+${HOLD2()}
          ${lastSig.ret!=null
            ? `<b class="${lastSig.ret>0?'up':'dn'}">${lastSig.ret>0?'+':''}${fmt(lastSig.ret)}%</b>`

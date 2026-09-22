@@ -54,7 +54,7 @@ for(const k of Object.keys(DATA)){
     const h=document.getElementById('plot').innerHTML||'';
     const info=document.getElementById('rnginfo').innerHTML||'';
     if(/undefined|NaN/.test(h+info)){console.log('  !! '+k+' '+rg+' 输出含 undefined/NaN');bad2++;continue;}
-    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#58a6ff" stroke-width="2"/);
+    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/);
     if(!m){console.log('  !! '+k+' '+rg+' 找不到主折线');bad2++;continue;}
     const pts=(m[1].match(/L/g)||[]).length+1;
     const exp=expectN(DATA[k].dates,rg);
@@ -65,7 +65,7 @@ for(const k of Object.keys(DATA)){
     /* 等级标记：三角形数 == 窗口内信号数；光环数 == 窗口内 A 级数 */
     const [w0,w1]=winIdx(DATA[k]);
     const d0=DATA[k].dates[w0], d1=DATA[k].dates[w1];
-    const all=[...DATA[k].bottom,...DATA[k].top];
+    const all=(MODE==='swing')?(DATA[k].swing_events||[]):DATA[k].bottom;
     const inW=all.filter(e=>e.date>=d0&&e.date<=d1);
     const nTri=(h.match(/l-6\.5 /g)||[]).length;
     const nHalo=(h.match(/r="9\.5"/g)||[]).length;
@@ -109,7 +109,7 @@ for(const k of Object.keys(DATA)){
     const h=document.getElementById('plot').innerHTML||'';
     const info=document.getElementById('rnginfo').innerHTML||'';
     if(/undefined|NaN/.test(h+info)){console.log('  !! '+k+' '+rg+' 输出含 undefined/NaN');bad3++;continue;}
-    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#58a6ff" stroke-width="2"/);
+    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/);
     if(!m){console.log('  !! '+k+' '+rg+' 找不到主折线');bad3++;continue;}
     const pts=(m[1].match(/L/g)||[]).length+1;
     const exp=expectN(DATA[k].dates,rg);

@@ -28,15 +28,14 @@ def cmd_stats(args):
     panels = store.load()
     s = store.summary(panels)
     thr = s["entry_thr"]
-    print(f"{'板块':<10}{'底部命中':>11}{'未被套':>10}{'基线':>9}{'顶部命中':>11}{'基线':>9}")
+    print(f"{'板块':<10}{'底部命中':>11}{'未被套':>10}{'基线':>9}")
     for b in C.BOARD_ORDER:
         p = s["per"][b]
-        bt, tp = p["bottom"], p["top"]
+        bt = p["bottom"]
         bs = f"{bt['ok']}/{bt['n']}"
         nt = f"{bt['nt']}/{bt['n']}"
-        ts = f"{tp['ok']}/{tp['n']}"
         print(f"{C.BOARDS[b]['name']:<10}{bs:>11}{nt:>10}"
-              f"{p['base_bottom']:>8.1f}%{ts:>11}{p['base_top']:>8.1f}%")
+              f"{p['base_bottom']:>8.1f}%")
     t = s["total"]
     pct = lambda a, b: (a / b * 100) if b else 0.0
     print(f"\n合计（近3年 {C.BACKTEST_START} ~ 今，判定 T+{store.H}，容差 {store.TOL:.0%}）")
@@ -44,8 +43,7 @@ def cmd_stats(args):
           f"（入场后 {store.COOL_TRADING} 交易日冷却）")
     print(f"  底部  命中 {t['b_ok']}/{t['b_n']} = {pct(t['b_ok'],t['b_n']):.0f}%"
           f"   未被套超3% {t['b_nt']}/{t['b_n']} = {pct(t['b_nt'],t['b_n']):.0f}%")
-    print(f"  顶部  命中 {t['t_ok']}/{t['t_n']} = {pct(t['t_ok'],t['t_n']):.0f}%"
-          f"（首次破 100，实测无效，仅供参考）")
+    print("  顶部信号已移除：实测 2/9 = 22.2%，随机基线 40.1%，p = 0.93，与瞎猜无差异")
 
     # ---- 小波段 SWING ----
     sw = s.get("swing")
