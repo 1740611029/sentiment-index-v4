@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import model
+from . import model, swing
 
 PANEL_DIR = os.path.join(C.DATA_DIR, "panels")
 META_PATH = os.path.join(C.DATA_DIR, "meta.json")
@@ -272,6 +272,16 @@ def baseline(p: pd.DataFrame, kind: str) -> float:
     return round(float(np.mean(ok)) * 100, 1) if ok else 0.0
 
 
+_swing_cache: dict = {}
+
+
+def swing_panels() -> dict[str, pd.DataFrame]:
+    """小波段面板（带进程内缓存，避免首页每次请求都读一遍 parquet）。"""
+    if not _swing_cache:
+        _swing_cache.update(swing.build_and_cache())
+    return _swing_cache
+
+
 def summary(panels: dict[str, pd.DataFrame]) -> dict:
     tot = {"b_n": 0, "b_ok": 0, "b_nt": 0, "t_n": 0, "t_ok": 0,
            "r_n": 0, "r_ok": 0, "r_nt": 0, "r_win60": 0, "r_n60": 0,
@@ -348,7 +358,8 @@ def summary(panels: dict[str, pd.DataFrame]) -> dict:
             "bna_latest": (None if bna is None or len(bna) == 0
                            else round(float(bna.dropna().iloc[-1]), 1)),
             "bna_date": (None if bna is None or len(bna) == 0
-                         else str(bna.dropna().index[-1].date()))}
+                         else str(bna.dropna().index[-1].date())),
+            "swing": swing.summary(swing_panels())}
 
 
 def to_json(panels: dict[str, pd.DataFrame]) -> dict:
@@ -356,8 +367,11 @@ def to_json(panels: dict[str, pd.DataFrame]) -> dict:
     reso = resonance(panels)
     bna = bna_series()
     mg = margin_series()
+    sp = swing_panels()
+    sreso = swing.resonance(sp)
     for b, p in panels.items():
         bot, top = events(p, reso, bna, mg)
+        q = sp[b]
         out[b] = {
             "name": C.BOARDS[b]["name"],
             "desc": C.BOARDS[b]["desc"],
@@ -368,5 +382,10 @@ def to_json(panels: dict[str, pd.DataFrame]) -> dict:
             "T": [round(float(x), 1) for x in p["T"]],
             "bottom": bot,
             "top": top,
+            # ---- 小波段 SWING ----
+            "swing": [round(float(x), 2) for x in q["swing"]],
+            "swing_pos": [round(float(x), 1) for x in q["pos"]],
+            "swing_heat": [round(float(x), 1) for x in q["heat"]],
+            "swing_events": swing.events(q, sreso),
         }
     return out

@@ -34,6 +34,19 @@
   .title span{color:var(--blu)}
   .sub{color:var(--mut);font-size:12px;margin-top:6px;text-align:right;line-height:1.8}
 
+  /* ---------- mode switch ---------- */
+  .modes{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:12px}
+  .mode{flex:1 1 320px;min-width:280px;background:var(--card);border:1px solid var(--bd);
+        border-radius:12px;padding:12px 16px;cursor:pointer;text-align:left;
+        font-family:inherit;color:var(--mut);transition:.15s}
+  .mode:hover{border-color:var(--bd2);background:var(--card2)}
+  .mode .mn{font-size:14px;font-weight:650;color:var(--tx);display:flex;align-items:center;gap:8px}
+  .mode .mn::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim);flex:none}
+  .mode .md{font-size:12px;margin-top:5px;line-height:1.65}
+  .mode.on{border-color:#1f6feb;background:#16233a;box-shadow:0 2px 14px -6px rgba(31,111,235,.6)}
+  .mode.on .mn::before{background:var(--blu);box-shadow:0 0 0 3px rgba(88,166,255,.25)}
+  .mode:focus-visible{outline:2px solid var(--blu);outline-offset:2px}
+
   /* ---------- tabs ---------- */
   .tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px;
         background:rgba(20,26,35,.92);border:1px solid var(--bd);border-radius:12px;padding:5px;
@@ -170,6 +183,8 @@
       <span style="opacity:.75">　|　说明见 README.md / DELIVERY.md</span></div>
   </header>
 
+  <div class="modes" id="modes"></div>
+
   <div class="tabs" id="tabs"></div>
 
   <div class="hero">
@@ -182,11 +197,11 @@
         <div class="mk" id="mk" style="left:50%"></div>
         <i class="tk" style="left:18.75%"></i><i class="tk" style="left:81.25%"></i>
       </div>
-      <div class="barscale">
+      <div class="barscale" id="barscale">
         <span style="left:0%">-30</span><span style="left:18.75%">0</span>
         <span style="left:81.25%">100</span><span style="left:100%">140</span>
       </div>
-      <div class="barlab"><span>恐慌</span><span>贪婪</span></div>
+      <div class="barlab" id="barlab"><span>恐慌</span><span>贪婪</span></div>
       <div class="lsig" id="lsig"></div>
     </div>
     <div class="card chartcard">
@@ -197,33 +212,13 @@
       <div class="opts">
         <label><input type="checkbox" id="ovl" checked> 叠加指数收盘</label>
         <span id="rnginfo"></span>
+        <span id="modestat"></span>
       </div>
       <div id="plot"></div>
-      <div class="legend">
-        <span><i style="background:var(--blu)"></i>情绪分值</span>
-        <span><i style="background:#4b5563"></i>指数收盘（右轴）</span>
-        <span><i style="background:var(--grn)"></i>&lt;0 底部溢出区</span>
-        <span><i style="background:#7ee787"></i>入场阈值线</span>
-        <span><i style="background:var(--red)"></i>&gt;100 顶部溢出区</span>
-        <span><i style="background:var(--yel)"></i>信号点</span>
-        <span style="white-space:nowrap">等级：
-          <b style="color:#7ee787">▲</b>A 高置信（实心+光环）　
-          <b style="color:#e3b341">▲</b>B 中（实心）　
-          <b style="color:#8b949e">△</b>C 低（空心）</span>
-      </div>
+      <div class="legend" id="legend"></div>
       <details class="gnote">
-        <summary>等级说明：A / B / C 怎么用</summary>
-        <div class="gbody">
-          <b class="k">等级有什么用</b>：等级<b class="k">不决定出不出信号</b>，它回答的是
-          「这次信号有几个独立证据支持」，只用来<b class="k">定仓位</b> ——
-          <b style="color:#7ee787">A</b>：两个确认层都成立（估值已投降 ＋ 多板块共振）→ 证据最足，可正常甚至偏重；
-          <b style="color:#e3b341">B</b>：只成立一个 → 常规仓位；
-          <b style="color:#8b949e">C</b>：两个都没成立 → 置信度回落到全样本平均，建议减半或观望。
-          <br>两个确认层：<b class="k">估值投降</b>＝破净股占比处于近一年高分位（市场级，管时机）；
-          <b class="k">全场共振</b>＝同一天还有别的板块也跌到 ≤0（横截面，管选谁）。
-          近 3 年：<b class="k">A 级 3 个（3/3 命中）、B 级 16 个（14/16）、C 级 0 个</b>；
-          顶部只分 A（杠杆已挤满）／C（没挤满）。
-        </div>
+        <summary id="gsum">等级说明：A / B / C 怎么用</summary>
+        <div class="gbody" id="gbody"></div>
       </details>
     </div>
   </div>
@@ -242,6 +237,33 @@ const KEYS = {{ boards|tojson }};
 const HOLD = {{ hold }};
 let cur = KEYS[0].key;
 
+/* ---------- 模式：大波段 SENTI-1 / 小波段 SWING ---------- */
+let MODE = 'senti';
+const MODES = [
+  {k:'senti', n:'大波段 · SENTI-1',
+   d:'抓「投降底」：恐慌放量、估值投降。信号少而重，判定看 T+20 / T+60。'},
+  {k:'swing', n:'小波段 · SWING',
+   d:'抓「回调底」：4～10 天波段。信号多而轻，判定看 T+7。'
+    +'　全部信号 64%；共振 ≥5 的 S 级 87%（少而准）。'}
+];
+const modesEl = document.getElementById('modes');
+MODES.forEach(m=>{
+  const b=document.createElement('button');
+  b.className='mode'+(m.k===MODE?' on':''); b.dataset.k=m.k; b.type='button';
+  b.innerHTML=`<div class="mn">${m.n}</div><div class="md">${m.d}</div>`;
+  b.onclick=()=>{MODE=m.k;
+    modesEl.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x.dataset.k===MODE));
+    render();};
+  modesEl.appendChild(b);
+});
+
+/* 当前模式下取哪条曲线 / 哪些信号 / 阈值 / 持有期 */
+const SW = () => SUM.swing || {thr:22, hold:7, cool:4, tol:3};
+const SR   = B => MODE==='swing' ? B.swing : B.score;
+const EVS  = B => MODE==='swing' ? (B.swing_events||[]) : [...B.bottom,...B.top];
+const THR  = () => MODE==='swing' ? SW().thr : (SUM.entry_thr ?? 0);
+const HOLD2= () => MODE==='swing' ? SW().hold : HOLD;
+
 /* ---------- tabs ---------- */
 const tabsEl = document.getElementById('tabs');
 KEYS.forEach(b=>{
@@ -256,6 +278,15 @@ KEYS.forEach(b=>{
 /* ---------- helpers ---------- */
 const fmt=(n,d=2)=>(n===null||isNaN(n))?'--':Number(n).toFixed(d);
 function state(v){
+  if(MODE==='swing'){
+    const t=THR();
+    if(v<=t)     return ['超卖 · 已达小波段入场阈值','#7ee787'];
+    if(v<30)     return ['偏冷','#4ac26b'];
+    if(v<45)     return ['偏冷','#79c0ff'];
+    if(v<60)     return ['中性','#8b949e'];
+    if(v<75)     return ['偏热','#e3b341'];
+    return ['过热 · 短期涨得快','#f85149'];
+  }
   if(v<=(SUM.entry_thr??0)) return ['极度恐慌 · 已达入场阈值','#7ee787'];
   if(v<0)   return ['极度恐慌 · 底部区','#3fb950'];
   if(v<20)  return ['恐慌','#4ac26b'];
@@ -267,9 +298,18 @@ function state(v){
 }
 
 /* 置信等级配色与释义（全页统一口径） */
-const GCOL={A:'#7ee787',B:'#e3b341',C:'#8b949e'};
+const GCOL={S:'#58d7ff',A:'#7ee787',B:'#e3b341',C:'#8b949e'};
 const GWHY={bottom:{A:'估值投降 + 全场共振',B:'只满足其中一个确认层',C:'两个确认层都不满足'},
             top:{A:'杠杆已挤满',C:'杠杆没挤满'}};
+/* SWING 只有"共振强弱"这一个确认层：当天还有几个别的板块也超卖 */
+const GWHY2={S:'全场共振 ≥5 个板块（实测 87%）',A:'共振 4 个板块（实测 79%）',
+             B:'共振 2~3 个板块',C:'仅本板块超卖'};
+function gradeOf(e){
+  if(MODE==='swing'){ const r=e.reso||1;
+    return r>=5?'S':(r>=4?'A':(r>=2?'B':'C')); }
+  return e.grade||'C';
+}
+const whyOf=(e,g)=> MODE==='swing' ? (GWHY2[g]||'') : ((GWHY[e.kind]||{})[g]||'');
 
 /* ---------- chart ---------- */
 let cvW=900;
@@ -307,7 +347,8 @@ function drawChart(){
   const B=DATA[cur], el=document.getElementById('plot');
   const ovl  =document.getElementById('ovl').checked;
   const [i0,i1]=winIdx(B), N=i1-i0+1;
-  const sc=B.score.slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
+  const sc=SR(B).slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
+  const SWG = MODE==='swing';
 
   const W=Math.max(560,cvW), H=Math.max(340,Math.min(520,Math.round(W*0.36)));
   const PADX=32, L=62, RM=54, TOPY=H*0.075, BOTY=H*0.90;
@@ -328,28 +369,36 @@ function drawChart(){
   const yc=v=>BOTY-(v-clo)/(chi-clo||1)*(BOTY-TOPY);
 
   const P=[];
-  // 溢出区
-  if(yMin<0) P.push(`<rect x="${L}" y="${y(0)}" width="${PW}" height="${BOTY-y(0)}" fill="#3fb950" opacity=".07"/>`);
-  if(yMax>100) P.push(`<rect x="${L}" y="${TOPY}" width="${PW}" height="${y(100)-TOPY}" fill="#f85149" opacity=".09"/>`);
+  const T0=THR();
+  // 溢出区 / 超卖区
+  if(SWG){
+    // SWING：分值越低越超卖 → 阈值**以下**是入场区
+    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3fb950" opacity=".08"/>`);
+  }else{
+    if(yMin<0) P.push(`<rect x="${L}" y="${y(0)}" width="${PW}" height="${BOTY-y(0)}" fill="#3fb950" opacity=".07"/>`);
+    if(yMax>100) P.push(`<rect x="${L}" y="${TOPY}" width="${PW}" height="${y(100)-TOPY}" fill="#f85149" opacity=".09"/>`);
+  }
   // 网格 + y 轴刻度
   for(let v=Math.ceil(yMin/step)*step; v<=yMax+1e-9; v+=step){
     P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#242c37" stroke-width="1"/>`);
     P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#5a6472" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
   }
-  // 0 / 100 边界（不在视野内时给个方位提示，避免误以为没画）
-  [[0,'#3fb950','下'],[100,'#f85149','上']].forEach(([v,c,dir])=>{
-    if(v>=yMin&&v<=yMax)
-      P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="${c}" stroke-width="1.5" stroke-dasharray="6 4" opacity=".8"/>`);
-    else
-      P.push(`<text x="${L+6}" y="${v<yMin?BOTY-6:TOPY+13}" fill="${c}" font-size="10" opacity=".65">${v} 线在${dir}方（窗口外）</text>`);
-  });
-  // 入场阈值线（昨日分值低于此线、今日回升即入场）
-  const ST = SUM.entry_thr ?? 0;
-  if(ST>=yMin&&ST<=yMax){
-    P.push(`<line x1="${L}" y1="${y(ST)}" x2="${L+PW}" y2="${y(ST)}" stroke="#7ee787"
+  // 0 / 100 边界（SENTI-1 的绝对刻度）
+  if(!SWG){
+    [[0,'#3fb950','下'],[100,'#f85149','上']].forEach(([v,c,dir])=>{
+      if(v>=yMin&&v<=yMax)
+        P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="${c}" stroke-width="1.5" stroke-dasharray="6 4" opacity=".8"/>`);
+      else
+        P.push(`<text x="${L+6}" y="${v<yMin?BOTY-6:TOPY+13}" fill="${c}" font-size="10" opacity=".65">${v} 线在${dir}方（窗口外）</text>`);
+    });
+  }
+  // 入场阈值线
+  if(T0>=yMin&&T0<=yMax){
+    const lab = SWG ? `入场阈值 ${T0}（≤ 即触发）` : `入场阈值 ${T0}`;
+    P.push(`<line x1="${L}" y1="${y(T0)}" x2="${L+PW}" y2="${y(T0)}" stroke="#7ee787"
              stroke-width="1.2" stroke-dasharray="3 3" opacity=".7"/>`);
-    P.push(`<text x="${L+PW-4}" y="${y(ST)-5}" fill="#7ee787" font-size="10"
-             text-anchor="end" opacity=".85">入场阈值 ${ST}</text>`);
+    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#7ee787" font-size="10"
+             text-anchor="end" opacity=".85">${lab}</text>`);
   }
   // 指数收盘
   if(ovl){
@@ -369,10 +418,10 @@ function drawChart(){
   P.push(`<path d="${a2}" fill="url(#g1)"/>`);
   P.push(`<path d="${d}" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linejoin="round"/>`);
   // 信号点：形状/上下位置 = 方向，样式 = 置信等级（A 实心+光环 / B 实心 / C 空心）
-  const evs=[...B.bottom,...B.top];
+  const evs=EVS(B);
   evs.forEach(e=>{
     const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
-    const g=e.grade||'C', col=GCOL[g]||GCOL.C;
+    const g=gradeOf(e), col=GCOL[g]||GCOL.C;
     const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+(e.kind==='bottom'?12:-12);
     P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
              stroke="${col}" stroke-width="1" opacity=".5"/>`);
@@ -402,7 +451,7 @@ function drawChart(){
 
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>`;
   const evmap={};
-  [...B.bottom,...B.top].forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
+  EVS(B).forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
   el._geo={x,y,sc,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,evmap,hold:HOLD};
 
   const svg=el.querySelector('svg');
@@ -419,14 +468,16 @@ function drawChart(){
     tip.style.display='block';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY-10)+'px';
     const evs2=g.evmap[g.dates[i]]||[];
     const evTxt=evs2.map(e=>{
-      const gg=e.grade||'C';
-      const nm=(e.kind==='bottom'?'底部信号':'顶部信号');
-      const rr=(e.ret!=null?`　T+${g.hold||20} ${e.ret>0?'+':''}${fmt(e.ret)}%`:'');
+      const gg=gradeOf(e);
+      const nm=(e.kind==='top'?'顶部信号':(MODE==='swing'?'小波段低点信号':'底部信号'));
+      const rr=(e.ret!=null?`　T+${g.hold||20} ${e.ret>0?'+':''}${fmt(e.ret)}%`
+                           :'　待验证');
       return `<div style="margin-top:4px"><b style="color:${GCOL[gg]}">${gg} 级</b> ${nm}
-              · ${(GWHY[e.kind]||{})[gg]||''}${rr}</div>`;
+              · ${whyOf(e,gg)}${rr}</div>`;
     }).join('');
     tip.innerHTML=`<b>${g.dates[i]}</b><br>`
-      + `情绪分值 <b>${fmt(g.sc[i],1)}</b>`
+      + (MODE==='swing'?`SWING 超卖度 <b>${fmt(g.sc[i],1)}</b>`
+                       :`情绪分值 <b>${fmt(g.sc[i],1)}</b>`)
       + `<br>指数 ${g.close[i]}` + evTxt;
   });
   svg.addEventListener('mouseleave',()=>{
@@ -438,38 +489,127 @@ function drawChart(){
   // 窗口信息（图上画的就是原始分值，与左侧卡片同一个值）
   const ri=document.getElementById('rnginfo');
   if(ri) ri.innerHTML=`${dt[0]} ~ ${dt[N-1]}　·　${N} 个交易日　·　最新 `
-    +`<b style="color:#79c0ff">${fmt(B.score[i1],1)}</b>`
+    +`<b style="color:#79c0ff">${fmt(SR(B)[i1],1)}</b>`
     +`（与左侧卡片同一个值）`;
+}
+
+/* ---------- 图例 / 等级说明（随模式切换） ---------- */
+const LEGEND_SENTI =
+  `<span><i style="background:var(--blu)"></i>情绪分值</span>
+   <span><i style="background:#4b5563"></i>指数收盘（右轴）</span>
+   <span><i style="background:var(--grn)"></i>&lt;0 底部溢出区</span>
+   <span><i style="background:#7ee787"></i>入场阈值线</span>
+   <span><i style="background:var(--red)"></i>&gt;100 顶部溢出区</span>
+   <span><i style="background:var(--yel)"></i>信号点</span>
+   <span style="white-space:nowrap">等级：
+     <b style="color:#7ee787">▲</b>A 高置信（实心+光环）　
+     <b style="color:#e3b341">▲</b>B 中（实心）　
+     <b style="color:#8b949e">△</b>C 低（空心）</span>`;
+const LEGEND_SWING =
+  `<span><i style="background:var(--blu)"></i>SWING 超卖度（越低越超卖）</span>
+   <span><i style="background:#4b5563"></i>指数收盘（右轴）</span>
+   <span><i style="background:var(--grn)"></i>≤ 阈值 入场区</span>
+   <span><i style="background:#7ee787"></i>入场阈值线</span>
+   <span><i style="background:var(--yel)"></i>信号点</span>
+   <span style="white-space:nowrap">等级＝当天共振板块数：
+     <b style="color:#58d7ff">▲</b>S ≥5（87%）　
+     <b style="color:#7ee787">▲</b>A ≥4（79%）　
+     <b style="color:#e3b341">▲</b>B 2~3　
+     <b style="color:#8b949e">△</b>C 仅自身</span>`;
+
+function renderMeta(){
+  const SWG=MODE==='swing', sw=SW();
+  document.getElementById('legend').innerHTML = SWG?LEGEND_SWING:LEGEND_SENTI;
+  document.getElementById('gsum').textContent =
+    SWG?'等级说明：共振强弱怎么看':'等级说明：A / B / C 怎么用';
+  document.getElementById('gbody').innerHTML = SWG
+    ? `<b class="k">等级＝当天有几个板块一起超卖</b>（含自己）。共振越强＝越像系统性回调，
+         而不是这一个板块自己的问题。实测命中率随共振单调上升（近 3 年 / 含 2021-22 熊市的 5.7 年）：
+         <b style="color:#58d7ff">S</b>（≥5）81% / <b class="k">87%</b>、
+         <b style="color:#7ee787">A</b>（4）78% / 79%、
+         <b style="color:#e3b341">B</b>（2~3）63% / 57%、
+         <b style="color:#8b949e">C</b>（只有自己）＝全样本平均 64% / 60%。
+         共振 =6（全场 6 个板块同时超卖）两个窗口都是 100%（n=6 / 8）。
+         <br><b class="k">重要</b>：共振等级<b class="k">不决定出不出信号</b>，只用来定仓位。
+         科创板 2026-08-03 是 B 级、2026-09-14 是 C 级 —— 它们仍会被标出来，
+         只是证据强度不如 S/A 级。
+         <br><b class="k">别把 S 级的数字当成全部信号的能力</b>：全部信号 64%，S 级 87%，
+         S 级一年只有 3~5 次。<b class="k">87% 不是 85% 目标已达成</b> ——
+         它只是把「信号少」换成了「信号准」，你要的 08-03 / 09-14 那种点仍然只能靠 B/C 级覆盖。
+         <br>判定口径：T+${sw.hold} 期末收益 &gt; 0 且期间最深回撤 ≥ −${sw.tol}%，
+         随机基线约 <b class="k">${(SUM.swing&&SUM.swing.total)?SUM.swing.total.base:'—'}%</b>。`
+    : `<b class="k">等级有什么用</b>：等级<b class="k">不决定出不出信号</b>，它回答的是
+         「这次信号有几个独立证据支持」，只用来<b class="k">定仓位</b> ——
+         <b style="color:#7ee787">A</b>：两个确认层都成立（估值已投降 ＋ 多板块共振）→ 证据最足，可正常甚至偏重；
+         <b style="color:#e3b341">B</b>：只成立一个 → 常规仓位；
+         <b style="color:#8b949e">C</b>：两个都没成立 → 置信度回落到全样本平均，建议减半或观望。
+         <br>两个确认层：<b class="k">估值投降</b>＝破净股占比处于近一年高分位（市场级，管时机）；
+         <b class="k">全场共振</b>＝同一天还有别的板块也跌到 ≤0（横截面，管选谁）。
+         近 3 年：<b class="k">A 级 3 个（3/3 命中）、B 级 16 个（14/16）、C 级 0 个</b>；
+         顶部只分 A（杠杆已挤满）／C（没挤满）。`;
+
+  // 当前模式的实测命中率（放在图表上方，跟着模式走）
+  const ms=document.getElementById('modestat');
+  if(ms){
+    if(SWG){
+      const t=(SUM.swing&&SUM.swing.total)||{};
+      const r5=t.res5_n?Math.round(t.res5_ok/t.res5_n*100):null;
+      const r4=t.res4_n?Math.round(t.res4_ok/t.res4_n*100):null;
+      ms.innerHTML = `实测（近3年·6板块）　全部 <b>${t.rate??'—'}%</b>（${t.ok??0}/${t.n??0}）`
+        + `　·　S级≥5 <b>${r5??'—'}%</b>（${t.res5_ok??0}/${t.res5_n??0}）`
+        + `　·　A级≥4 <b>${r4??'—'}%</b>（${t.res4_ok??0}/${t.res4_n??0}）`
+        + `　·　基线 ${t.base??'—'}%`;
+    }else{
+      const t=SUM.total||{};
+      ms.innerHTML = `实测（近3年·6板块）　底部 <b>${t.b_n?Math.round(t.b_ok/t.b_n*100):'—'}%</b>`
+        + `（${t.b_ok??0}/${t.b_n??0}）　·　基线 ${(SUM.per&&SUM.per[cur])?SUM.per[cur].base_bottom:'—'}%`;
+    }
+  }
 }
 
 
 /* ---------- render ---------- */
 function render(){
-  const B=DATA[cur];
-  const v=B.score[B.score.length-1];
+  const B=DATA[cur], S=SR(B);
+  const v=S[S.length-1];
   const [txt,col]=state(v);
   document.getElementById('bname').textContent=B.name+'　'+B.desc;
   const sv=document.getElementById('sval'); sv.textContent=fmt(v,1); sv.style.color=col;
   document.getElementById('stag').innerHTML=`<span class="tag" style="background:${col}22;color:${col};border:1px solid ${col}66">${txt}</span>`;
-  const prev=B.score[B.score.length-6]??B.score[0];
+  const prev=S[S.length-6]??S[0];
   document.getElementById('schg').innerHTML=
     `<div>截至 ${B.dates[B.dates.length-1]}　较5日前 <b style="color:${v>=prev?'var(--red)':'var(--grn)'}">${v-prev>=0?'+':''}${fmt(v-prev,1)}</b></div>
      <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
-  document.getElementById('mk').style.left=Math.max(0,Math.min(100,(v+30)/160*100))+'%';
+  // 刻度条：SENTI-1 是 −30~140 的绝对刻度，SWING 是 0~100 的超卖度
+  const SWG=MODE==='swing', T0=THR();
+  document.getElementById('barscale').innerHTML = SWG
+    ? `<span style="left:0%">0</span><span style="left:${T0}%">${T0}</span>`
+      + `<span style="left:60%">60</span><span style="left:100%">100</span>`
+    : `<span style="left:0%">-30</span><span style="left:18.75%">0</span>`
+      + `<span style="left:81.25%">100</span><span style="left:100%">140</span>`;
+  document.getElementById('barlab').innerHTML = SWG
+    ? '<span>超卖（入场区）</span><span>过热</span>'
+    : '<span>恐慌</span><span>贪婪</span>';
+  document.getElementById('mk').style.left =
+    (SWG ? Math.max(0,Math.min(100,v)) : Math.max(0,Math.min(100,(v+30)/160*100)))+'%';
   drawChart();
 
   // 最近一次信号（信号表已移除，这里保留最关键的回溯信息）
-  const lastSig=[...B.bottom,...B.top].sort((p,q)=>p.date<q.date?1:-1)[0];
+  const lastSig=EVS(B).slice().sort((p,q)=>p.date<q.date?1:-1)[0];
   const lsEl=document.getElementById('lsig');
   if(lsEl){
-    const g0=lastSig?(lastSig.grade||'C'):'C';
+    const g0=lastSig?gradeOf(lastSig):'C';
+    const isTop=lastSig&&lastSig.kind==='top';
     lsEl.innerHTML = lastSig
       ? `最近信号　<b style="color:${GCOL[g0]}">${g0} 级</b>
-         ${lastSig.kind==='bottom'?'底部':'顶部'}　${lastSig.date}
-         　${(GWHY[lastSig.kind]||{})[g0]||''}　T+${HOLD}
-         <b class="${lastSig.ret>0?'up':'dn'}">${lastSig.ret>0?'+':''}${fmt(lastSig.ret)}%</b>`
+         ${SWG?'小波段低点':(isTop?'顶部':'底部')}　${lastSig.date}
+         　${whyOf(lastSig,g0)}　T+${HOLD2()}
+         ${lastSig.ret!=null
+           ? `<b class="${lastSig.ret>0?'up':'dn'}">${lastSig.ret>0?'+':''}${fmt(lastSig.ret)}%</b>`
+           : '<b style="color:var(--yel)">待验证</b>'}`
       : '<span style="color:var(--dim)">近3年无信号</span>';
   }
+  renderMeta();
 }
 
 document.getElementById('ovl').onchange=drawChart;

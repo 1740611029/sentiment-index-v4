@@ -95,8 +95,48 @@ for(const k of Object.keys(DATA)){
 }
 if(badLs===0) console.log('  最近信号行: 6 个板块均已渲染 ✔');
 bad2+=badLs;
-console.log('\n  '+(bad2===0?'✔ 图表冒烟通过':'✘ 图表存在 '+bad2+' 处问题'));
-process.exit(bad2?1:0);
+
+/* ---------- ③ 小波段 SWING 模式 ---------- */
+console.log('\n③ 小波段 SWING 模式');
+let bad3=0;
+MODE='swing';
+if(!(SUM.swing&&SUM.swing.total)){console.log('  !! SUM.swing 缺失');bad3++;}
+for(const k of Object.keys(DATA)){
+  cur=k;
+  const line=[];
+  for(const rg of ['7d','1m','3m','6m','1y','all']){
+    RNG=rg; drawChart();
+    const h=document.getElementById('plot').innerHTML||'';
+    const info=document.getElementById('rnginfo').innerHTML||'';
+    if(/undefined|NaN/.test(h+info)){console.log('  !! '+k+' '+rg+' 输出含 undefined/NaN');bad3++;continue;}
+    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#58a6ff" stroke-width="2"/);
+    if(!m){console.log('  !! '+k+' '+rg+' 找不到主折线');bad3++;continue;}
+    const pts=(m[1].match(/L/g)||[]).length+1;
+    const exp=expectN(DATA[k].dates,rg);
+    if(pts!==exp){console.log('  !! '+k+' '+rg+' 点数 '+pts+' != '+exp);bad3++;}
+    line.push(rg+':'+pts);
+  }
+  render();
+  const ls=document.getElementById('lsig').innerHTML||'';
+  const ms=document.getElementById('modestat').innerHTML||'';
+  const lg=document.getElementById('legend').innerHTML||'';
+  const gb=document.getElementById('gbody').innerHTML||'';
+  if(/undefined|NaN/.test(ls+ms+lg+gb)){console.log('  !! '+k+' SWING 文案含 undefined/NaN');bad3++;}
+  if(!/SWING|超卖/.test(lg)){console.log('  !! '+k+' 图例未切到 SWING');bad3++;}
+  console.log('  '+k.padEnd(9)+line.join('  '));
+}
+/* 目标日期硬约束：科创板必须能标出 2026-08-03 与 2026-09-14 */
+{
+  const ev=(DATA.STAR.swing_events||[]).map(e=>e.date);
+  const need=['2026-08-03','2026-09-14'];
+  for(const d of need){
+    const ok=ev.includes(d);
+    console.log('  科创板 '+d+' 标记: '+(ok?'✔':'✘ 未触发'));
+    if(!ok) bad3++;
+  }
+}
+console.log('\n  '+(bad3===0?'✔ SWING 模式冒烟通过':'✘ SWING 存在 '+bad3+' 处问题'));
+process.exit((bad2+bad3)?1:0);
 """
 
 

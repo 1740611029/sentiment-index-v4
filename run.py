@@ -47,6 +47,32 @@ def cmd_stats(args):
     print(f"  顶部  命中 {t['t_ok']}/{t['t_n']} = {pct(t['t_ok'],t['t_n']):.0f}%"
           f"（首次破 100，实测无效，仅供参考）")
 
+    # ---- 小波段 SWING ----
+    sw = s.get("swing")
+    if sw:
+        st = sw["total"]
+        print(f"\n小波段 SWING（近3年 {C.BACKTEST_START} ~ 今）")
+        print(f"  入场规则：SWING 超卖度 ≤ {sw['thr']:.0f} → 当日收盘买入"
+              f"（冷却 {sw['cool']} 交易日，判定 T+{sw['hold']}，容差 {sw['tol']}%）")
+        print(f"{'板块':<10}{'命中':>11}{'未被套':>10}{'基线':>9}")
+        for b in C.BOARD_ORDER:
+            v = sw["per"][b]
+            print(f"{C.BOARDS[b]['name']:<10}{str(v['ok'])+'/'+str(v['n']):>11}"
+                  f"{str(v['nt'])+'/'+str(v['n']):>10}{v['base']:>8.1f}%")
+        print(f"  合计  命中 {st['ok']}/{st['n']} = {st['rate']}%"
+              f"   未被套 {st['nt']}/{st['n']}"
+              f"   待验证 {st['pend']}   基线 {st['base']}%")
+        print(f"  分层  共振≥{sw['reso_min']} {st['res_ok']}/{st['res_n']}"
+              f" = {pct(st['res_ok'],st['res_n']):.1f}%"
+              f"　共振≥4 {st['res4_ok']}/{st['res4_n']}"
+              f" = {pct(st['res4_ok'],st['res4_n']):.1f}%"
+              f"　共振≥5(S级) {st['res5_ok']}/{st['res5_n']}"
+              f" = {pct(st['res5_ok'],st['res5_n']):.1f}%")
+        print("  （共振越强越准、但信号越少；等级只做标签不过滤，两个目标日都在全部信号里）")
+        print("  注意：上表是近 3 年窗口。拉长到 2021-01 起（含 2021-22 熊市，n=116）"
+              "全部信号降到 59.5%，而共振≥5 反而升到 87.0%（20/23）——"
+              "S 级这档跨窗口最稳。")
+
 
 def main():
     ap = argparse.ArgumentParser(description="A股板块恐贪情绪指数 v4")
