@@ -1,9 +1,11 @@
 # 数据缓存：由 run.py build 重新生成，体积 400M+，不入库
 data/cache/
-data/panels/
+data/panels*/
 
 # 冒烟测试中间产物
 _explore/_smoke_tmp/
+# 探索脚本的网格扫描输出（csv）
+_explore/*.csv
 
 # WorkBuddy 会话数据
 .workbuddy-ai/
