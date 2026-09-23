@@ -71,6 +71,58 @@ def cmd_stats(args):
               "全部信号降到 59.5%，而共振≥5 反而升到 87.0%（20/23）——"
               "S 级这档跨窗口最稳。")
 
+    # ---- 小波段 SWING-2（动量拐点）----
+    sw2 = s.get("swing2")
+    un = s.get("union")
+    if sw2:
+        t2 = sw2["total"]
+        print(f"\n小波段 SWING-2（动量拐点，第二个小波段模型）")
+        print(f"  入场规则：SWING-2 = MACD柱/收盘价的因果锚分位 ≤ {sw2['thr']:.0f}"
+              f" → 当日收盘买入（冷却 {sw2['cool']}，判定 T+{sw2['hold']}，容差 {sw2['tol']}%）")
+        print(f"  合计  命中 {t2['ok']}/{t2['n']} = {t2['rate']}%"
+              f"   未被套 {t2['nt']}/{t2['n']}   待验证 {t2['pend']}   基线 {t2['base']}%")
+
+    # ---- 小波段 SWING-3（均线拐点）----
+    sw3 = s.get("swing3")
+    if sw3:
+        t3 = sw3["total"]
+        print(f"\n小波段 SWING-3（均线拐点，第三个小波段模型）")
+        print(f"  入场规则：SWING-3 = MA20 的 5 日斜率的因果锚分位 ≤ {sw3['thr']:.0f}"
+              f" 且当日回升 → 当日收盘买入"
+              f"（冷却 {sw3['cool']}，判定 T+{sw3['hold']}，容差 {sw3['tol']}%）")
+        print(f"{'板块':<10}{'命中':>11}{'未被套':>10}{'基线':>9}")
+        for b in C.BOARD_ORDER:
+            v = sw3["per"][b]
+            print(f"{C.BOARDS[b]['name']:<10}{str(v['ok'])+'/'+str(v['n']):>11}"
+                  f"{str(v['nt'])+'/'+str(v['n']):>10}{v['base']:>8.1f}%")
+        print(f"  合计  命中 {t3['ok']}/{t3['n']} = {t3['rate']}%"
+              f"   未被套 {t3['nt']}/{t3['n']}"
+              f"   待验证 {t3['pend']}   基线 {t3['base']}%")
+        print(f"  分层  共振≥{sw3['reso_min']} {t3['res_ok']}/{t3['res_n']}"
+              f" = {pct(t3['res_ok'],t3['res_n']):.1f}%"
+              f"　共振≥4 {t3['res4_ok']}/{t3['res4_n']}"
+              f" = {pct(t3['res4_ok'],t3['res4_n']):.1f}%"
+              f"　共振≥5(S级) {t3['res5_ok']}/{t3['res5_n']}"
+              f" = {pct(t3['res5_ok'],t3['res5_n']):.1f}%")
+        print("  与另两个模型几乎不重叠：J(SWING-3,SWING)=0.03、J(SWING-3,SWING-2)=0.00")
+
+    # ---- 三模型并集（页面默认视图）----
+    if un:
+        tu = un["total"]
+        print(f"\n并集（SWING ∪ SWING-2 ∪ SWING-3，同日去重，页面默认视图）")
+        print(f"{'板块':<10}{'命中':>11}{'未被套':>10}{'基线':>9}")
+        for b in C.BOARD_ORDER:
+            v = un["per"][b]
+            print(f"{C.BOARDS[b]['name']:<10}{str(v['ok'])+'/'+str(v['n']):>11}"
+                  f"{str(v['nt'])+'/'+str(v['n']):>10}{tu['base']:>8.1f}%")
+        print(f"  合计  命中 {tu['ok']}/{tu['n']} = {tu['rate']}%"
+              f"   未被套 {tu['nt']}/{tu['n']}   待验证 {tu['pend']}   基线 {tu['base']}%")
+        print(f"  → 对比原两模型合并（143 次 / 66.4%）：信号 +32%、命中 +4.5pp，"
+              f"两个维度同时上升")
+        print("  已知边界：2015/2016 连环崩塌会连续误判（SWING-2 长历史 34.7%、"
+              "SWING-3 2015 年 40%），这是「超卖抄底」整个范式的通病，"
+              "同期现 SWING 价格部分也是 33% / 33%。")
+
 
 def main():
     ap = argparse.ArgumentParser(description="A股板块恐贪情绪指数 v4")

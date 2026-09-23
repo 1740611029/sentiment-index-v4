@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import model, swing
+from . import model, swing, swing2, swing3
 
 PANEL_DIR = os.path.join(C.DATA_DIR, "panels")
 META_PATH = os.path.join(C.DATA_DIR, "meta.json")
@@ -223,6 +223,80 @@ def swing_panels() -> dict[str, pd.DataFrame]:
     return _swing_cache
 
 
+_swing2_cache: dict = {}
+
+
+def swing2_panels() -> dict[str, pd.DataFrame]:
+    """SWING-2（动量拐点）面板（带进程内缓存）。"""
+    if not _swing2_cache:
+        _swing2_cache.update(swing2.build_and_cache())
+    return _swing2_cache
+
+
+_swing3_cache: dict = {}
+
+
+def swing3_panels() -> dict[str, pd.DataFrame]:
+    """SWING-3（均线拐点）面板（带进程内缓存）。"""
+    if not _swing3_cache:
+        _swing3_cache.update(swing3.build_and_cache())
+    return _swing3_cache
+
+
+def union_events(board: str, q: pd.DataFrame, p2: pd.DataFrame, p3: pd.DataFrame,
+                 sreso: pd.Series, s2reso: pd.Series, s3reso: pd.Series) -> list[dict]:
+    """把 SWING / SWING-2 / SWING-3 的信号按日期合并去重（默认视图）。
+
+    为什么不做全局冷却（_explore/s7 实测）：
+      全局冷却 0 → 222 / 64.4%；冷却 2 → 194 / 62.9%；冷却 3 → 187 / 62.6%
+      冷却 0 在**信号数与命中率两个维度上同时最优**，所以只做同日去重。
+      三个模型各自仍有 COOL=4 的冷却，不会无限密集。
+
+    同一天多个模型都触发时标记 src="both"（去重后只算一次信号）。
+
+    加入 SWING-3 后（6 板块 · 展示窗口 2023-09~2026-09）：
+      并集（SWING ∪ SWING-2）        121 次 / 66.9%
+      并集（三个）                   166 次 / 71.7%（+45 次、+4.8pp）
+    """
+    a = swing.events(q, sreso)
+    for e in a:
+        e["src"] = "swing"
+    b = swing2.events(p2, s2reso)
+    for e in b:
+        e["src"] = "macd"
+    c = swing3.events(p3, s3reso)
+    for e in c:
+        e["src"] = "maslope"
+    merged: dict[str, dict] = {}
+    for e in a + b + c:
+        d = e["date"]
+        if d in merged:
+            merged[d]["src"] = "both"
+        else:
+            merged[d] = dict(e)
+    return [merged[d] for d in sorted(merged)]
+
+
+def union_resonance(uev: dict[str, list[dict]]) -> dict[str, int]:
+    """并集口径的共振：同一天有多少个板块出现了（任一模型的）信号。
+
+    铁律三：各板块历史长度不同，必须按各板块自己的日期轴统计，
+    不能拿大盘的 index 去算别的板块。
+    """
+    by_date: dict[str, set] = {}
+    for b, ev in uev.items():
+        for e in ev:
+            by_date.setdefault(e["date"], set()).add(b)
+    return {d: len(v) for d, v in by_date.items()}
+
+
+def _stat(events: list[dict]) -> tuple[int, int, int]:
+    """(信号数, 命中数, 未被套数)，只统计已有未来数据可判定的。"""
+    done = [e for e in events if e.get("ok") is not None]
+    return (len(done), sum(1 for e in done if e["ok"]),
+            sum(1 for e in done if e.get("notrap")))
+
+
 def summary(panels: dict[str, pd.DataFrame]) -> dict:
     tot = {"b_n": 0, "b_ok": 0, "b_nt": 0,
            "r_n": 0, "r_ok": 0, "r_nt": 0, "r_win60": 0, "r_n60": 0,
@@ -270,13 +344,44 @@ def summary(panels: dict[str, pd.DataFrame]) -> dict:
                       "n60": len(cap60), "win60": sum(1 for e in cap60 if e["ret60"] > 0)},
             "base_bottom": baseline(p),
         }
+    # ---- 小波段：SWING（回调底）+ SWING-2（动量拐点）+ SWING-3（均线拐点）+ 并集 ----
+    sp = swing_panels()
+    s2p = swing2_panels()
+    s3p = swing3_panels()
+    sreso = swing.resonance(sp)
+    s2reso = swing2.resonance(s2p)
+    s3reso = swing3.resonance(s3p)
+    uev = {b: union_events(b, sp[b], s2p[b], s3p[b], sreso, s2reso, s3reso)
+           for b in C.BOARD_ORDER}
+    ures = union_resonance(uev)
+    un = uok = unt = upend = 0
+    uper = {}
+    for b in C.BOARD_ORDER:
+        for e in uev[b]:
+            e["ures"] = ures.get(e["date"], 1)
+        n_, ok_, nt_ = _stat(uev[b])
+        un += n_; uok += ok_; unt += nt_
+        upend += sum(1 for e in uev[b] if e.get("ok") is None)
+        uper[b] = {"n": n_, "ok": ok_, "nt": nt_,
+                   "rate": round(ok_ / n_ * 100, 1) if n_ else None}
+    ubase = round(float(np.mean([swing2.baseline(s2p[b]) for b in C.BOARD_ORDER])), 1)
     return {"total": tot, "per": per, "entry_thr": ENTRY_THR,
             "reso_min": RESONANCE_MIN, "bna_min": BNA_PCT_MIN,
             "bna_latest": (None if bna is None or len(bna) == 0
                            else round(float(bna.dropna().iloc[-1]), 1)),
             "bna_date": (None if bna is None or len(bna) == 0
                          else str(bna.dropna().index[-1].date())),
-            "swing": swing.summary(swing_panels())}
+            "swing": swing.summary(sp),
+            "swing2": swing2.summary(s2p),
+            "swing3": swing3.summary(s3p),
+            "union": {"total": {"n": un, "ok": uok, "nt": unt, "pend": upend,
+                                "rate": round(uok / un * 100, 1) if un else None,
+                                "base": ubase},
+                      "per": uper,
+                      "thr_swing": swing.THR, "thr_swing2": swing2.THR,
+                      "thr_swing3": swing3.THR,
+                      "cool": swing2.COOL, "hold": swing2.H,
+                      "tol": int(swing2.TOL * 100)}}
 
 
 def to_json(panels: dict[str, pd.DataFrame]) -> dict:
@@ -284,10 +389,22 @@ def to_json(panels: dict[str, pd.DataFrame]) -> dict:
     reso = resonance(panels)
     bna = bna_series()
     sp = swing_panels()
+    s2p = swing2_panels()
+    s3p = swing3_panels()
     sreso = swing.resonance(sp)
+    s2reso = swing2.resonance(s2p)
+    s3reso = swing3.resonance(s3p)
+    uev = {b: union_events(b, sp[b], s2p[b], s3p[b], sreso, s2reso, s3reso)
+           for b in C.BOARD_ORDER}
+    ures = union_resonance(uev)
+    for b in C.BOARD_ORDER:
+        for e in uev[b]:
+            e["ures"] = ures.get(e["date"], 1)
     for b, p in panels.items():
         bot = events(p, reso, bna)
         q = sp[b]
+        q2 = s2p[b]
+        q3 = s3p[b]
         out[b] = {
             "name": C.BOARDS[b]["name"],
             "desc": C.BOARDS[b]["desc"],
@@ -302,5 +419,13 @@ def to_json(panels: dict[str, pd.DataFrame]) -> dict:
             "swing_pos": [round(float(x), 1) for x in q["pos"]],
             "swing_heat": [round(float(x), 1) for x in q["heat"]],
             "swing_events": swing.events(q, sreso),
+            # ---- 小波段 SWING-2（动量拐点）----
+            "swing2": [round(float(x), 2) for x in q2["swing2"]],
+            "swing2_events": swing2.events(q2, s2reso),
+            # ---- 小波段 SWING-3（均线拐点）----
+            "swing3": [round(float(x), 2) for x in q3["swing3"]],
+            "swing3_events": swing3.events(q3, s3reso),
+            # ---- 并集（默认视图）----
+            "union_events": uev[b],
         }
     return out

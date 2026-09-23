@@ -136,7 +136,43 @@ for(const k of Object.keys(DATA)){
   }
 }
 console.log('\n  '+(bad3===0?'✔ SWING 模式冒烟通过':'✘ SWING 存在 '+bad3+' 处问题'));
-process.exit((bad2+bad3)?1:0);
+
+/* ---------- ④ 小波段信号源四选：合并 / 回调底 / 动量拐点 / 均线拐点 ---------- */
+console.log('\n④ 小波段信号源四选（合并 / 回调底 / 动量拐点 / 均线拐点）');
+let bad4=0;
+const MAIN_RE=/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/;
+for(const s of ['union','swing','swing2','swing3']){
+  SRC=s;
+  let n=0, bad=0;
+  for(const k of Object.keys(DATA)){
+    cur=k; RNG='all'; drawChart(); render();
+    const h=document.getElementById('plot').innerHTML||'';
+    const ms=document.getElementById('modestat').innerHTML||'';
+    const lg=document.getElementById('legend').innerHTML||'';
+    const ls=document.getElementById('lsig').innerHTML||'';
+    if(/undefined|NaN/.test(h+ms+lg+ls)){console.log('  !! '+s+' '+k+' 含 undefined/NaN');bad++;}
+    if(!MAIN_RE.test(h)){console.log('  !! '+s+' '+k+' 找不到主折线');bad++;}
+    if(s==='union' && !/stroke="#C9A2FF"/.test(h)){
+      console.log('  !! '+s+' '+k+' 缺少 SWING-2 虚线曲线');bad++;}
+    if(s==='union' && !/stroke="#FFB86B"/.test(h)){
+      console.log('  !! '+s+' '+k+' 缺少 SWING-3 点线曲线');bad++;}
+    if(s==='union')  n+=(DATA[k].union_events||[]).length;
+    if(s==='swing')  n+=(DATA[k].swing_events||[]).length;
+    if(s==='swing2') n+=(DATA[k].swing2_events||[]).length;
+    if(s==='swing3') n+=(DATA[k].swing3_events||[]).length;
+  }
+  console.log('  SRC='+s.padEnd(7)+' 6板块信号合计 '+String(n).padStart(4)
+              +(bad?('  ✘ '+bad+' 处问题'):'  ✔'));
+  bad4+=bad;
+}
+SRC='union';
+/* 信号源名字的通俗解释必须存在（用户反馈「看不懂」才补的，别被后续改动删掉）。
+   注意 stub 的 appendChild 是空函数、也没有 querySelector，所以直接读 srcHint.innerHTML。 */
+const shTxt=((typeof srcHint!=='undefined' && srcHint.innerHTML)||'');
+if(!/回调底/.test(shTxt)||!/动量拐点/.test(shTxt)||!/均线拐点/.test(shTxt)){
+  console.log('  !! 信号源缺少通俗解释（需同时含「回调底」「动量拐点」「均线拐点」）');bad4++;}
+console.log('\n  '+(bad4===0?'✔ 信号源四选冒烟通过':'✘ 信号源四选存在 '+bad4+' 处问题'));
+process.exit((bad2+bad3+bad4)?1:0);
 """
 
 
