@@ -341,6 +341,81 @@ def _estat(events: list[dict]) -> dict:
             "notrap": sum(1 for e in done if e.get("notrap"))}
 
 
+# ---- 市场级口径（2026-09-23 新增）----
+# 事件级（同板块 ±4 日）之上还有一层：**同一波下跌里不同板块各自的低点**也是重复。
+# 6 个板块高度相关，2024-01 那种行情会让 5 个板块在几天内先后触发。
+# 跨板块聚类：任意板块、与簇内前一个信号相隔 ≤MARKET_GAP 自然日 → 同一次市场级事件。
+# 只保留每件事的**第一枪**。
+#
+# 实测（_explore/s23~s26，6 板块展示窗口）：
+#   小波段并集：信号 189 → 事件 136（67.6%）→ 市场级 34 次（50.0%）
+#   SENTI-1   ：信号  19 → 事件  19（89.5%）→ 市场级  6 次（83.3%）
+# SENTI-1 的「6 次」与 AGENTS.md 第 5 节早先记录的「17 次信号只对应 5 次
+# 市场级事件」吻合，把那个一直只在文档里的数字算实了。
+#
+# ⚠️ 两个必须记住的边界（_explore/s25、s26）：
+#   1. **簇跨度 ≥8 天（长期阴跌）的市场级命中率只有 19~36%**（长历史，8 个参数
+#      组合全部一致），而跨度 ≤7 天的是 68~77%。含义：市场连续两三周阴跌时，
+#      第一枪基本是陷阱（与 SENTI-1「磨底不是底」同源）。
+#   2. **但它不能当过滤器**：长簇的失败发生在**第一枪**，而「簇会有多长」在
+#      第一枪时不可知。所有实时替代（跨板块新鲜度 N=1~20、单板块冷却）都让
+#      结果变差（_explore/s26 C 段）。→ 只做**事后诊断**，不做过滤。
+#
+# 因此这一层只作为**报告口径**（回答「这套系统一年动手几次」），
+# 与 reso / grade 一样不进过滤链。
+MARKET_GAP = 5
+MARKET_SPAN_CAP = 20
+MARKET_LONG_SPAN = 8     # 簇跨度 ≥ 此值视为「长期阴跌」，历史命中率显著更差
+
+
+def market_events(by_board: dict[str, list[dict]],
+                  gap_days: int = MARKET_GAP,
+                  span_cap: int = MARKET_SPAN_CAP) -> list[dict]:
+    """跨板块聚类成市场级事件，返回每件事的第一枪（带簇形状）。"""
+    ev = sorted(((b, e) for b, evs in by_board.items() for e in evs),
+                key=lambda x: (x[1]["date"], x[0]))
+    out: list[dict] = []
+    cur: list[tuple] = []
+    last_d = start_d = None
+    for b, e in ev:
+        d = pd.Timestamp(e["date"])
+        if cur and (d - last_d).days <= gap_days and (d - start_d).days <= span_cap:
+            cur.append((b, e))
+            last_d = d
+            continue
+        if cur:
+            out.append(cur)
+        cur = [(b, e)]
+        last_d = start_d = d
+    if cur:
+        out.append(cur)
+    res = []
+    for c in out:
+        fb, fe = c[0]
+        days = {x[1]["date"] for x in c}
+        res.append({
+            "date": fe["date"], "board": fb, "ok": fe.get("ok"),
+            "ret": fe.get("ret"), "notrap": fe.get("notrap"),
+            "n_sig": len(c), "n_boards": len({x[0] for x in c}), "n_days": len(days),
+            "same_max": max(sum(1 for x in c if x[1]["date"] == d) for d in days),
+            "span_days": (max(pd.Timestamp(x[1]["date"]) for x in c)
+                          - min(pd.Timestamp(x[1]["date"]) for x in c)).days,
+            "members": [{"board": x[0], "date": x[1]["date"]} for x in c],
+        })
+    return res
+
+
+def _mstat(events: list[dict]) -> dict:
+    """市场级统计，并给出「长期阴跌（span ≥ MARKET_LONG_SPAN）」的拆分。"""
+    d = _estat(events)
+    long_ = [e for e in events if e.get("span_days", 0) >= MARKET_LONG_SPAN]
+    d["long"] = _estat(long_)
+    d["compact"] = _estat([e for e in events
+                           if e.get("span_days", 0) < MARKET_LONG_SPAN])
+    d["long_span"] = MARKET_LONG_SPAN
+    return d
+
+
 def summary(panels: dict[str, pd.DataFrame]) -> dict:
     tot = {"b_n": 0, "b_ok": 0, "b_nt": 0,
            "r_n": 0, "r_ok": 0, "r_nt": 0, "r_win60": 0, "r_n60": 0,
@@ -418,6 +493,12 @@ def summary(panels: dict[str, pd.DataFrame]) -> dict:
     ev_block = {"gap_days": EVENT_GAP, "union": _estat(cluster_events(uev))}
     for k_ in ("swing", "swing2", "swing3"):
         ev_block[k_] = _estat(cluster_events(m_ev[k_]))
+    # ---- 市场级（跨板块 ±MARKET_GAP 自然日算一件事）----
+    mkt_block = {"gap_days": MARKET_GAP, "union": _mstat(market_events(uev))}
+    for k_ in ("swing", "swing2", "swing3"):
+        mkt_block[k_] = _mstat(market_events(m_ev[k_]))
+    bot_by_board = {b: events(panels[b], reso, bna) for b in C.BOARD_ORDER}
+    mkt_block["bottom"] = _mstat(market_events(bot_by_board))
     return {"total": tot, "per": per, "entry_thr": ENTRY_THR,
             "reso_min": RESONANCE_MIN, "bna_min": BNA_PCT_MIN,
             "bna_latest": (None if bna is None or len(bna) == 0
@@ -428,6 +509,7 @@ def summary(panels: dict[str, pd.DataFrame]) -> dict:
             "swing2": swing2.summary(s2p),
             "swing3": swing3.summary(s3p),
             "event": ev_block,
+            "market": mkt_block,
             "union": {"total": {"n": un, "ok": uok, "nt": unt, "pend": upend,
                                 "rate": round(uok / un * 100, 1) if un else None,
                                 "base": ubase},

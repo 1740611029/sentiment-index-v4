@@ -138,6 +138,30 @@ def cmd_stats(args):
                       f"{(str(e_['wilson']) + '%') if e_['wilson'] is not None else '—':>9}")
             print("  → 信号次数回答「页面画了几个点」，事件次数才是独立的入场机会数；")
             print("    同一波下跌三个模型隔几天各触发一次，按同日去重会重复计数。")
+        # ---- 市场级（跨板块 ±5 自然日算一次）----
+        mblk = s.get("market")
+        if mblk:
+            print(f"\n  市场级（跨板块 ±{mblk['gap_days']} 自然日算一件事，只算第一枪）")
+            print("  → 这一层回答「这套系统一年动手几次」，含「某板块单独崩」的局部机会。")
+            print(f"  {'口径':<14}{'件数':>7}{'命中':>9}{'下界':>8}{'年化':>8}"
+                  f"{'其中长期阴跌(≥8天)':>20}")
+            for k_, lab in (("swing", "SWING"), ("swing2", "SWING-2"),
+                            ("swing3", "SWING-3"), ("union", "三模型合并"),
+                            ("bottom", "SENTI-1底部")):
+                e_ = mblk[k_]
+                if not e_["n"]:
+                    continue
+                lg = e_["long"]
+                lgtxt = (f"{lg['ok']}/{lg['n']} = {lg['rate']}%"
+                         if lg["n"] else "无")
+                print(f"  {lab:<14}{e_['n']:>7}"
+                      f"{(str(e_['rate']) + '%') if e_['rate'] is not None else '—':>9}"
+                      f"{(str(e_['wilson']) + '%') if e_['wilson'] is not None else '—':>8}"
+                      f"{e_['n']/3:>8.1f}{lgtxt:>20}")
+            print("  ⚠️ 「长期阴跌」（簇跨度 ≥8 天）的历史命中率只有 19~36%，")
+            print("     但它在第一枪时不可知，**不能当过滤器**（_explore/s26 已证）。")
+            print("  ⚠️ 「第一枪」口径对信号更密的模型天然不利（最早一枪更早 = 更接近")
+            print("     下跌途中），所以这一层只看「几次机会、效果如何」，不做模型排名。")
         print("  已知边界：2015/2016 连环崩塌会连续误判（SWING-2 长历史 34.7%、"
               "SWING-3 2015 年 40%），这是「超卖抄底」整个范式的通病，"
               "同期现 SWING 价格部分也是 33% / 33%。")
