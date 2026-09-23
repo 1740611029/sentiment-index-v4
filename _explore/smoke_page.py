@@ -1,15 +1,19 @@
-"""页面冒烟测试：抓取线上页面 → 校验 JS 语法 → 用真实数据跑一遍表格渲染。
+"""页面冒烟测试：抓取线上页面 → 校验 JS 语法 → 用真实数据跑一遍渲染。
 
 为什么要这个：模板里改 JS 很容易写出「语法没错但渲染出 undefined / 行数不对」的问题，
-而浏览器起不来（Windows 上 agent-browser 不可用），肉眼也看不全 6 个板块 × 两种表。
+而浏览器起不来（Windows 上 agent-browser 不可用），肉眼也看不全 6 个板块 × 多种视图。
 这个脚本三步走：
   ① 抽出页面的 <script> 段，用 node --check 查语法
   ② 抽出页面里内联的 DATA / SUM（真实数据）
-  ③ 在 node 里 stub 掉 document，真实调用 drawChart() 与渲染逻辑，校验点数/末点坐标/等级标记/NaN
+  ③ 在 node 里 stub 掉 document，真实调用 drawChart()/render()，校验点数/末点坐标/等级标记/NaN
 
 用法：
   python _explore/smoke_page.py                # 默认 http://127.0.0.1:8779/
   python _explore/smoke_page.py --port 8780
+
+⚠️ 2026-09-23 起「合并」视图 = **三个模型各一张图**（drawUnion），不再叠三条曲线。
+   所以合并视图的校验改成「3 张子图、各自主折线/阈值线/信号点」，
+   单模型视图（回调底 / 动量拐点 / 均线拐点）才用原来的单折线校验。
 """
 import sys, os, re, json, subprocess, argparse, urllib.request
 
@@ -29,6 +33,7 @@ function _mk(id){return {id:id,checked:false,innerHTML:'',textContent:'',dataset
   setAttribute:function(){},getBoundingClientRect:function(){return {left:0,width:900};}};}
 global.document={getElementById:function(id){return _els[id]||(_els[id]=_mk(id));},
                  createElement:function(){return _mk('new');},
+                 querySelector:function(){return _mk('q');},
                  querySelectorAll:function(){return [];}};
 global.window={addEventListener:function(){}};
 """
@@ -46,6 +51,11 @@ function expectN(dates,rg){
   let c=0; for(const d of dates) if(d>=cut) c++;
   return Math.min(Math.max(c,5), dates.length);
 }
+const MAIN_RE=/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/;
+const cnt=(s,re)=>(s.match(re)||[]).length;
+const COL3={swing:'#5FA8FF',swing2:'#C9A2FF',swing3:'#FFB86B'};
+
+/* ---------- ② 大波段 SENTI-1 ---------- */
 for(const k of Object.keys(DATA)){
   cur=k;
   const line=[];
@@ -54,7 +64,7 @@ for(const k of Object.keys(DATA)){
     const h=document.getElementById('plot').innerHTML||'';
     const info=document.getElementById('rnginfo').innerHTML||'';
     if(/undefined|NaN/.test(h+info)){console.log('  !! '+k+' '+rg+' 输出含 undefined/NaN');bad2++;continue;}
-    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/);
+    const m=h.match(MAIN_RE);
     if(!m){console.log('  !! '+k+' '+rg+' 找不到主折线');bad2++;continue;}
     const pts=(m[1].match(/L/g)||[]).length+1;
     const exp=expectN(DATA[k].dates,rg);
@@ -65,10 +75,9 @@ for(const k of Object.keys(DATA)){
     /* 等级标记：三角形数 == 窗口内信号数；光环数 == 窗口内 A 级数 */
     const [w0,w1]=winIdx(DATA[k]);
     const d0=DATA[k].dates[w0], d1=DATA[k].dates[w1];
-    const all=(MODE==='swing')?(DATA[k].swing_events||[]):DATA[k].bottom;
-    const inW=all.filter(e=>e.date>=d0&&e.date<=d1);
-    const nTri=(h.match(/l-6\.5 /g)||[]).length;
-    const nHalo=(h.match(/r="9\.5"/g)||[]).length;
+    const inW=DATA[k].bottom.filter(e=>e.date>=d0&&e.date<=d1);
+    const nTri=cnt(h,/l-6\.5 /g);
+    const nHalo=cnt(h,/r="9\.5"/g);
     const nA=inW.filter(e=>e.grade==='A').length;
     if(nTri!==inW.length){console.log('  !! '+k+' '+rg+' 信号标记 '+nTri+' != 窗口信号 '+inW.length);bad2++;}
     if(nHalo!==nA){console.log('  !! '+k+' '+rg+' A级光环 '+nHalo+' != A级信号 '+nA);bad2++;}
@@ -95,11 +104,12 @@ for(const k of Object.keys(DATA)){
 }
 if(badLs===0) console.log('  最近信号行: 6 个板块均已渲染 ✔');
 bad2+=badLs;
+console.log('\n  '+(bad2===0?'✔ SENTI-1 冒烟通过':'✘ SENTI-1 存在 '+bad2+' 处问题'));
 
-/* ---------- ③ 小波段 SWING 模式 ---------- */
-console.log('\n③ 小波段 SWING 模式');
+/* ---------- ③ 小波段单模型视图（回调底 SWING） ---------- */
+console.log('\n③ 小波段 SWING 单模型视图（回调底）');
 let bad3=0;
-MODE='swing';
+MODE='swing'; SRC='swing';
 if(!(SUM.swing&&SUM.swing.total)){console.log('  !! SUM.swing 缺失');bad3++;}
 for(const k of Object.keys(DATA)){
   cur=k;
@@ -109,7 +119,8 @@ for(const k of Object.keys(DATA)){
     const h=document.getElementById('plot').innerHTML||'';
     const info=document.getElementById('rnginfo').innerHTML||'';
     if(/undefined|NaN/.test(h+info)){console.log('  !! '+k+' '+rg+' 输出含 undefined/NaN');bad3++;continue;}
-    const m=h.match(/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/);
+    if(cnt(h,/<svg /g)!==1){console.log('  !! '+k+' '+rg+' 单模型视图应有 1 张图');bad3++;continue;}
+    const m=h.match(MAIN_RE);
     if(!m){console.log('  !! '+k+' '+rg+' 找不到主折线');bad3++;continue;}
     const pts=(m[1].match(/L/g)||[]).length+1;
     const exp=expectN(DATA[k].dates,rg);
@@ -128,19 +139,17 @@ for(const k of Object.keys(DATA)){
 /* 目标日期硬约束：科创板必须能标出 2026-08-03 与 2026-09-14 */
 {
   const ev=(DATA.STAR.swing_events||[]).map(e=>e.date);
-  const need=['2026-08-03','2026-09-14'];
-  for(const d of need){
+  for(const d of ['2026-08-03','2026-09-14']){
     const ok=ev.includes(d);
     console.log('  科创板 '+d+' 标记: '+(ok?'✔':'✘ 未触发'));
     if(!ok) bad3++;
   }
 }
-console.log('\n  '+(bad3===0?'✔ SWING 模式冒烟通过':'✘ SWING 存在 '+bad3+' 处问题'));
+console.log('\n  '+(bad3===0?'✔ SWING 单模型冒烟通过':'✘ SWING 单模型存在 '+bad3+' 处问题'));
 
-/* ---------- ④ 小波段信号源四选：合并 / 回调底 / 动量拐点 / 均线拐点 ---------- */
+/* ---------- ④ 信号源四选：合并（三张图）/ 回调底 / 动量拐点 / 均线拐点 ---------- */
 console.log('\n④ 小波段信号源四选（合并 / 回调底 / 动量拐点 / 均线拐点）');
 let bad4=0;
-const MAIN_RE=/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/;
 for(const s of ['union','swing','swing2','swing3']){
   SRC=s;
   let n=0, bad=0;
@@ -150,16 +159,40 @@ for(const s of ['union','swing','swing2','swing3']){
     const ms=document.getElementById('modestat').innerHTML||'';
     const lg=document.getElementById('legend').innerHTML||'';
     const ls=document.getElementById('lsig').innerHTML||'';
-    if(/undefined|NaN/.test(h+ms+lg+ls)){console.log('  !! '+s+' '+k+' 含 undefined/NaN');bad++;}
-    if(!MAIN_RE.test(h)){console.log('  !! '+s+' '+k+' 找不到主折线');bad++;}
-    if(s==='union' && !/stroke="#C9A2FF"/.test(h)){
-      console.log('  !! '+s+' '+k+' 缺少 SWING-2 虚线曲线');bad++;}
-    if(s==='union' && !/stroke="#FFB86B"/.test(h)){
-      console.log('  !! '+s+' '+k+' 缺少 SWING-3 点线曲线');bad++;}
-    if(s==='union')  n+=(DATA[k].union_events||[]).length;
-    if(s==='swing')  n+=(DATA[k].swing_events||[]).length;
-    if(s==='swing2') n+=(DATA[k].swing2_events||[]).length;
-    if(s==='swing3') n+=(DATA[k].swing3_events||[]).length;
+    const info=document.getElementById('rnginfo').innerHTML||'';
+    if(/undefined|NaN/.test(h+ms+lg+ls+info)){console.log('  !! '+s+' '+k+' 含 undefined/NaN');bad++;}
+    if(s==='union'){
+      /* 三张子图，各自一条主折线 + 一条阈值线 + 自己的信号点 */
+      const nsvg=cnt(h,/<svg /g);
+      if(nsvg!==3){console.log('  !! union '+k+' 子图数 '+nsvg+' != 3');bad++;}
+      if(cnt(h,/class="subchart"/g)!==3){console.log('  !! union '+k+' 缺 subchart 容器');bad++;}
+      if(cnt(h,/入场阈值/g)!==3){console.log('  !! union '+k+' 阈值线数 '+cnt(h,/入场阈值/g)+' != 3');bad++;}
+      for(const key of ['swing','swing2','swing3']){
+        const re=new RegExp('stroke="'+COL3[key]+'" stroke-width="1\\.8"');
+        if(!re.test(h)){console.log('  !! union '+k+' 缺 '+key+' 主折线');bad++;}
+      }
+      if(!/三个模型各自一张图/.test(info)){console.log('  !! union '+k+' 窗口信息未说明三张图');bad++;}
+      if(!/刻度不同/.test(lg)){console.log('  !! union '+k+' 图例未说明刻度不可比');bad++;}
+      /* 信号点：src='both' 的事件三张图都画 → 期望三角形数 = Σ(1 or 3) */
+      const [w0,w1]=winIdx(DATA[k]);
+      const d0=DATA[k].dates[w0], d1=DATA[k].dates[w1];
+      const inW=(DATA[k].union_events||[]).filter(e=>e.date>=d0&&e.date<=d1);
+      const expTri=inW.reduce((a,e)=>a+((e.src==='both')?3:1),0);
+      const nTri=cnt(h,/l-6 /g);
+      if(nTri!==expTri){console.log('  !! union '+k+' 信号点 '+nTri+' != 期望 '+expTri);bad++;}
+      /* 左侧卡片：三个最新值 + 隐藏单刻度条 */
+      const sv=document.getElementById('sval');
+      if(sv.className!=='big3'){console.log('  !! union '+k+' 卡片未切成三值布局');bad++;}
+      if(!/回调底/.test(sv.innerHTML)||!/动量拐点/.test(sv.innerHTML)||!/均线拐点/.test(sv.innerHTML)){
+        console.log('  !! union '+k+' 卡片缺某个模型的最新值');bad++;}
+      if(document.getElementById('barscale').style.display!=='none'){
+        console.log('  !! union '+k+' 单刻度条未隐藏');bad++;}
+      n+=inW.length;
+    }else{
+      if(!MAIN_RE.test(h)){console.log('  !! '+s+' '+k+' 找不到主折线');bad++;}
+      if(cnt(h,/<svg /g)!==1){console.log('  !! '+s+' '+k+' 单模型视图应有 1 张图');bad++;}
+      n+=(DATA[k][s+'_events']||[]).length;
+    }
   }
   console.log('  SRC='+s.padEnd(7)+' 6板块信号合计 '+String(n).padStart(4)
               +(bad?('  ✘ '+bad+' 处问题'):'  ✔'));
@@ -180,12 +213,6 @@ def fetch(url):
     req = urllib.request.Request(url)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     return opener.open(req, timeout=60).read().decode("utf-8", "replace")
-
-
-    req = urllib.request.Request(url)
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    return opener.open(req, timeout=60).read().decode("utf-8", "replace")
-
 
 
 def main():

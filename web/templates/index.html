@@ -126,6 +126,13 @@
        text-shadow:0 0 34px rgba(0,0,0,.55)}
   .big::after{content:"分";font-size:14px;font-weight:500;color:var(--dim);
        margin-left:7px;letter-spacing:0;vertical-align:5px;text-shadow:none}
+  /* 合并视图：卡片里并排给出三个模型的最新值（各自刻度，各自跟自己比） */
+  .big3{margin:8px 0 0;display:grid;gap:7px}
+  .big3 .row{display:flex;align-items:baseline;gap:9px}
+  .big3 .nm{font-size:12px;color:var(--mut);width:52px;flex:none}
+  .big3 .v{font-size:clamp(26px,2.1vw,34px);font-weight:600;line-height:1.05;
+       font-variant-numeric:tabular-nums;letter-spacing:-1px}
+  .big3 .th{font-size:11px;color:var(--dim);margin-left:auto;white-space:nowrap}
   .tag{display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;
        font-size:12px;font-weight:600;margin-top:11px;letter-spacing:.01em}
   /* 不再用"盒中盒"：改成发丝分隔的读数行 */
@@ -192,6 +199,18 @@
           background:rgba(148,171,200,.05);border:1px solid var(--bd);
           border-radius:999px;line-height:1.6}
   .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;flex:none}
+
+  /* ---------- 合并视图：三个模型各自一张图 ---------- */
+  .subchart{border:1px solid var(--bd);border-radius:var(--r2);
+            background:rgba(148,171,200,.022);padding:10px 12px 4px;margin-bottom:12px}
+  .subchart:last-child{margin-bottom:0}
+  .schead{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+          font-size:12px;color:var(--mut);padding:0 2px 6px}
+  .schead b{font-size:13px;font-weight:500}
+  .sdot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
+  .shint{color:var(--dim)}
+  .sval{margin-left:auto;color:var(--mut);white-space:nowrap}
+  .sval b{font-size:13px}
 
   .gnote{margin-top:14px;background:var(--card2);border:1px solid var(--bd);
          border-radius:var(--r2);overflow:hidden}
@@ -336,7 +355,7 @@ MODES.forEach(m=>{
    后者才是独立的入场机会数。 */
 let SRC = 'union';
 const SRCS = [
-  {k:'union',  n:'合并（默认）',  d:'三个模型都算，同日去重。信号最多。'},
+  {k:'union',  n:'合并（默认）',  d:'三个模型都算，同日去重，各画一张图。信号最多。'},
   {k:'swing',  n:'回调底 SWING',  d:'价格位置 + 热度同时到极端分位。'},
   {k:'swing2', n:'动量拐点 SWING-2', d:'MACD 柱跌到自身极低分位。'},
   {k:'swing3', n:'均线拐点 SWING-3', d:'MA20 斜率跌到极低分位，且当日斜率回升。'},
@@ -363,7 +382,11 @@ srcHint.innerHTML=
  +'　<b style="color:#FFB86B">均线拐点</b>＝看「均线还跌得多急」：'
  +'MA20 的 5 日斜率跌到历史极低分位，<b>且当天斜率已经回升</b>'
  +'（跌势开始趋缓）—— 这是「跌速的拐点」，不是价格的拐点。'
- +'　三者几乎不重叠（均线拐点与动量拐点完全不重合），所以合并起来看信号最多。';
+ +'　三者几乎不重叠（均线拐点与动量拐点完全不重合），所以合并起来看信号最多。'
+ +'<br><b style="color:#F5B544">合并视图是三张图，不是三条线叠一张图</b>：'
+ +'三者的分值刻度中心不同（近 750 日分值中位数 58~70 / 44~51 / 34~49），'
+ +'叠在一起会让人误以为「均线拐点特别超卖」。'
+ +'所以每个模型一张图，各自跟自己比 —— 只看它离<b>自己的阈值线</b>有多远。';
 srcEl.appendChild(srcHint);
 function syncSrc(){
   const on = (MODE==='swing');
@@ -386,12 +409,16 @@ function syncSrc(){
 
 /* 当前模式下取哪条曲线 / 哪些信号 / 阈值 / 持有期 */
 const SW = () => SUM.swing || {thr:22, hold:7, cool:4, tol:3};
-/* 合并视图同时画三条曲线：SWING 实线 + SWING-2 虚线 + SWING-3 点线（都是 0~100 同刻度，可比） */
+/* ⚠️ 三个模型的分值**刻度不同**，不能叠在一张图上比（2026-09-23 改）：
+   近 750 日分值中位数 SWING 58~70 / SWING-2 44~51 / SWING-3 34~49；
+   「分值 50」在 SWING-3 里实际落在自身分布的 83 分位（MA20 斜率分布严重右偏）。
+   所以「合并」视图改成 drawUnion()：三个模型各画一张图，各自带自己的阈值。
+   下面这些取数函数只服务**单模型视图**（回调底 / 动量拐点 / 均线拐点）；
+   合并视图的取数在 drawUnion() 内部按 SUB3 各自完成。 */
 const SR   = B => MODE!=='swing' ? B.score
                 : (SRC==='swing2' ? (B.swing2||[])
-                 : SRC==='swing3' ? (B.swing3||[]) : (B.swing||[]));
-const SR2  = B => (MODE==='swing' && SRC==='union') ? (B.swing2||[]) : null;
-const SR3  = B => (MODE==='swing' && SRC==='union') ? (B.swing3||[]) : null;
+                 : SRC==='swing3' ? (B.swing3||[])
+                 : (B.swing||[]));
 const EVS  = B => MODE!=='swing' ? B.bottom
                 : SRC==='union'  ? (B.union_events||[])
                 : SRC==='swing2' ? (B.swing2_events||[])
@@ -399,8 +426,6 @@ const EVS  = B => MODE!=='swing' ? B.bottom
                 : (B.swing_events||[]);
 const THR  = () => MODE!=='swing' ? (SUM.entry_thr ?? 0)
                 : (SRC==='swing2' ? SRC2().thr : (SRC==='swing3' ? SRC3().thr : SW().thr));
-const THR2 = () => (MODE==='swing' && SRC==='union') ? SRC2().thr : null;
-const THR3 = () => (MODE==='swing' && SRC==='union') ? SRC3().thr : null;
 const HOLD2= () => MODE==='swing' ? SW().hold : HOLD;
 
 /* ---------- tabs ---------- */
@@ -483,13 +508,161 @@ function winIdx(B){
   return [i0,i1];
 }
 
+/* ---------- 合并视图：三个模型各一张图 ----------
+   为什么不叠在一张图（2026-09-23）：三者虽然都标 0~100，但**刻度中心不同**。
+   近 750 日分值中位数：SWING 58~70、SWING-2 44~51、SWING-3 34~49；
+   「分值 50」在 SWING-3 里实际落在自身分布的 83 分位
+   （MA20 斜率的 p98 是 p2 的 3 倍，分布严重右偏，而三者共用同一个 p2/p98 线性映射）。
+   叠在一起会让人误读成「SWING-3 特别超卖」——其实是刻度不同，不是更超卖。
+   分开画后每张图只跟自己比：自己的曲线 + 自己的阈值 + 自己的信号点。 */
+const SUB3=[
+  {key:'swing',  name:'回调底 SWING',    short:'回调底',  color:'#5FA8FF',
+   hint:'看「跌到哪了」——价格离近期高点与各条均线有多远', srcs:['swing','both']},
+  {key:'swing2', name:'动量拐点 SWING-2', short:'动量拐点', color:'#C9A2FF',
+   hint:'看「跌得还有多快」——MACD 柱跌到自身极低分位', srcs:['macd','both']},
+  {key:'swing3', name:'均线拐点 SWING-3', short:'均线拐点', color:'#FFB86B',
+   hint:'看「均线还跌得多急」——MA20 斜率极低且当日已回升', srcs:['maslope','both']},
+];
+let GEOS=[];
+
+function bindHover(svg,g){
+  svg.addEventListener('mousemove',ev=>{
+    const r=svg.getBoundingClientRect();
+    const px=(ev.clientX-r.left)/r.width*g.W;
+    let i=Math.round((px-g.L)/(g.PW/(g.N-1)));
+    i=Math.max(0,Math.min(g.N-1,i));
+    const hx=g.x(g.i0+i);
+    const hv=svg.querySelector('.hoverline'), hd=svg.querySelector('.hoverdot');
+    if(hv){hv.setAttribute('x',hx);hv.style.display='';}
+    if(hd){hd.setAttribute('cx',hx);hd.setAttribute('cy',g.y(g.sc[i]));hd.style.display='';}
+    const tip=document.getElementById('tip');
+    tip.style.display='block';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY-10)+'px';
+    const evs2=g.evmap[g.dates[i]]||[];
+    const evTxt=evs2.map(e=>{
+      const gg=gradeOf(e);
+      const rr=(e.ret!=null?`　T+${g.hold||7} ${e.ret>0?'+':''}${fmt(e.ret)}%`:'　待验证');
+      const stag=(e.src==='macd'?'<span style="color:#C9A2FF">◆动量拐点</span> '
+        :e.src==='maslope'?'<span style="color:#FFB86B">●均线拐点</span> '
+        :e.src==='swing'?'<span style="color:#5FA8FF">▲回调底</span> '
+        :'<span style="color:#F5B544">多模型同时</span> ');
+      return `<div style="margin-top:4px">${stag}<b style="color:${GCOL[gg]}">${gg} 级</b> 小波段低点信号`
+             +` · ${whyOf(e,gg)}${rr}</div>`;
+    }).join('');
+    const lbl=GEOS.map(gg=>`${gg.short} <b style="color:${gg.color}">${fmt(gg.sc[i],1)}</b>`).join('　');
+    tip.innerHTML=`<b>${g.dates[i]}</b><br>${lbl}<br>指数 ${g.close[i]}`+evTxt;
+  });
+  svg.addEventListener('mouseleave',()=>{
+    svg.querySelectorAll('.hoverline,.hoverdot').forEach(n=>n.style.display='none');
+    document.getElementById('tip').style.display='none';
+  });
+}
+
+function drawUnion(){
+  const B=DATA[cur], el=document.getElementById('plot');
+  const ovl=document.getElementById('ovl').checked;
+  const [i0,i1]=winIdx(B), N=i1-i0+1;
+  const cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
+  /* 三张子图：宽高比刻意做得比主图扁（≈5:1），三张叠起来总高才不至于要滚很久；
+     纵轴幅度靠 TOPY/BOTY 留 0.75H 的绘图区来保证，不靠图高。
+     W 要扣掉 .subchart 的 12px×2 padding + 1px×2 border，否则 viewBox 比容器宽，
+     SVG 会被等比缩到 98% 左右（不会变形，但白留一圈边）。 */
+  const W=Math.max(560,cvW-26);
+  const H=Math.max(200,Math.min(300,Math.round(W*0.22)));
+  const PADX=32,L=62,RM=54,TOPY=H*0.11,BOTY=H*0.86, PW=W-PADX*2-L-RM;
+  const x=a=>L+PW*(a-i0)/(N-1);
+  let clo=Math.min(...cl), chi=Math.max(...cl);
+  const yc=v=>BOTY-(v-clo)/(chi-clo||1)*(BOTY-TOPY);
+  const evs=EVS(B), evmap={};
+  evs.forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
+  GEOS=[];
+  const blocks=SUB3.map(c=>{
+    const full = c.key==='swing'?(B.swing||[]):(c.key==='swing2'?(B.swing2||[]):(B.swing3||[]));
+    const sc=full.slice(i0,i1+1);
+    const T0=c.key==='swing'?SW().thr:(c.key==='swing2'?SRC2().thr:SRC3().thr);
+    /* 每张图自己的 y 轴：只含自己的曲线 + 自己的阈值（保证阈值线永远在视野内） */
+    let lo=Math.min(...sc,T0), hi=Math.max(...sc,T0);
+    const span=Math.max(hi-lo,8), pad=span*0.15;
+    const yLo=lo-pad, yHi=hi+pad;
+    const step=(yHi-yLo)>120?20:(yHi-yLo)>60?10:(yHi-yLo)>30?5:2;
+    const yMin=Math.floor(yLo/step)*step, yMax=Math.ceil(yHi/step)*step;
+    const y=v=>BOTY-(v-yMin)/(yMax-yMin)*(BOTY-TOPY);
+    const P=[];
+    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3ECF8E" opacity=".09"/>`);
+    for(let v=Math.ceil(yMin/step)*step; v<=yMax+1e-9; v+=step){
+      P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#1C2532" stroke-width="1"/>`);
+      P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#7A8AA1" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
+    }
+    P.push(`<line x1="${L}" y1="${BOTY}" x2="${L+PW}" y2="${BOTY}" stroke="#28323F" stroke-width="1"/>`);
+    P.push(`<line x1="${L}" y1="${y(T0)}" x2="${L+PW}" y2="${y(T0)}" stroke="#6FE39C"
+             stroke-width="1.2" stroke-dasharray="3 3" opacity=".75"/>`);
+    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#6FE39C" font-size="10"
+             text-anchor="end" opacity=".9">入场阈值 ${T0}（≤ 即触发）</text>`);
+    if(ovl){
+      let dd='';
+      for(let a=i0;a<=i1;a++) dd+=(a>i0?'L':'M')+x(a).toFixed(1)+' '+yc(cl[a-i0]).toFixed(1);
+      P.push(`<path d="${dd}" fill="none" stroke="#5C6E85" stroke-width="1.3" opacity=".75"/>`);
+    }
+    const gid='g_'+c.key;
+    let d='',a2=`M${L} ${BOTY} `;
+    for(let a=i0;a<=i1;a++){const s=x(a).toFixed(1)+' '+y(sc[a-i0]).toFixed(1);d+=(a>i0?'L':'M')+s;a2+=`L${s} `;}
+    a2+=`L${L+PW} ${BOTY} Z`;
+    P.push(`<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${c.color}" stop-opacity=".26"/>
+      <stop offset="100%" stop-color="${c.color}" stop-opacity="0"/></linearGradient></defs>`);
+    P.push(`<path d="${a2}" fill="url(#${gid})"/>`);
+    P.push(`<path d="${d}" fill="none" stroke="${c.color}" stroke-width="1.8" stroke-linejoin="round"/>`);
+    /* 只画本模型的信号点（src="both" 表示当天多个模型同时触发，三张图都画） */
+    evs.filter(e=>c.srcs.includes(e.src)).forEach(e=>{
+      const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
+      const g=gradeOf(e), col=GCOL[g]||GCOL.C;
+      const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+11;
+      P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
+               stroke="${col}" stroke-width="1" opacity=".5"/>`);
+      if(g==='A')
+        P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="8.5" fill="none"
+                 stroke="${col}" stroke-width="1.3" opacity=".9"/>`);
+      const fill=g==='C'?'none':col, sw=g==='C'?1.6:1.1;
+      const ap=(cyc-7).toFixed(1), bs=(cyc+4).toFixed(1);
+      P.push(`<path d="M${cx} ${ap} l-6 ${(bs-ap)} l12 0 Z" fill="${fill}"
+               stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`);
+    });
+    const lx=x(i1), ly=y(sc[N-1]);
+    P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="${c.color}" stroke="#0E131A" stroke-width="2"/>`);
+    P.push(`<text x="${(lx-8).toFixed(1)}" y="${(ly-10).toFixed(1)}" fill="${c.color}"
+             font-size="12" font-weight="700" text-anchor="end">${fmt(sc[N-1],1)}</text>`);
+    const nT=Math.min(6,N);
+    for(let k=0;k<nT;k++){
+      const a=i0+Math.round(k*(N-1)/(nT-1));
+      const lab = N<=70 ? dt[a-i0].slice(5) : dt[a-i0].slice(0,7);
+      P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+20}" fill="#7A8AA1" font-size="12" text-anchor="middle">${lab}</text>`);
+    }
+    P.push(`<rect class="hoverline" width="1" height="${BOTY-TOPY}" y="${TOPY}" fill="${c.color}" opacity=".3" style="display:none"/>`);
+    P.push(`<circle class="hoverdot" r="4.5" fill="#fff" style="display:none"/>`);
+    GEOS.push({key:c.key,name:c.name,short:c.short,color:c.color,thr:T0,
+               x,y,sc,L,PW,N,i0,W,dates:dt,close:cl,evmap,hold:SW().hold});
+    return `<div class="subchart">
+      <div class="schead">
+        <span class="sdot" style="background:${c.color}"></span>
+        <b style="color:${c.color}">${c.name}</b>
+        <span class="shint">${c.hint}</span>
+        <span class="sval">最新 <b style="color:${c.color}">${fmt(sc[N-1],1)}</b>　阈值 ≤${T0}</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>
+    </div>`;
+  }).join('');
+  el.innerHTML=blocks;
+  el.querySelectorAll('svg').forEach((svg,k)=>bindHover(svg,GEOS[k]));
+  const ri=document.getElementById('rnginfo');
+  if(ri) ri.innerHTML=`${dt[0]} ~ ${dt[N-1]}　·　${N} 个交易日　·　`
+    +`三个模型各自一张图（<b style="color:#F5B544">刻度不同，不要横着比高低</b>，各自跟自己比）`;
+}
+
 function drawChart(){
+  if(MODE==='swing' && SRC==='union'){ drawUnion(); return; }
   const B=DATA[cur], el=document.getElementById('plot');
   const ovl  =document.getElementById('ovl').checked;
   const [i0,i1]=winIdx(B), N=i1-i0+1;
   const sc=SR(B).slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
-  const s2=SR2(B), sc2=s2?s2.slice(i0,i1+1):null;
-  const s3=SR3(B), sc3=s3?s3.slice(i0,i1+1):null;
   const SWG = MODE==='swing';
 
   const W=Math.max(560,cvW), H=Math.max(340,Math.min(520,Math.round(W*0.36)));
@@ -498,8 +671,6 @@ function drawChart(){
 
   /* y 轴：按窗口自适应；0 / 100 离数据不远时纳入，保留恐贪刻度感 */
   let lo=Math.min(...sc), hi=Math.max(...sc);
-  if(sc2){ lo=Math.min(lo,Math.min(...sc2)); hi=Math.max(hi,Math.max(...sc2)); }
-  if(sc3){ lo=Math.min(lo,Math.min(...sc3)); hi=Math.max(hi,Math.max(...sc3)); }
   const span=Math.max(hi-lo,10), pad=span*0.12;
   let yLo=lo-pad, yHi=hi+pad;
   if(0   >= lo-span) yLo=Math.min(yLo,0);
@@ -562,60 +733,22 @@ function drawChart(){
     <stop offset="100%" stop-color="#5FA8FF" stop-opacity="0"/></linearGradient></defs>`);
   P.push(`<path d="${a2}" fill="url(#g1)"/>`);
   P.push(`<path d="${d}" fill="none" stroke="#5FA8FF" stroke-width="2" stroke-linejoin="round"/>`);
-  // 合并视图：叠加 SWING-2 曲线（虚线）+ 它自己的阈值线
-  if(sc2){
-    let d2='';
-    for(let a=i0;a<=i1;a++) d2+=(a>i0?'L':'M')+x(a).toFixed(1)+' '+y(sc2[a-i0]).toFixed(1);
-    P.push(`<path d="${d2}" fill="none" stroke="#C9A2FF" stroke-width="1.6"
-             stroke-dasharray="5 4" opacity=".85" stroke-linejoin="round"/>`);
-    const T1=THR2();
-    if(T1!=null&&T1>=yMin&&T1<=yMax){
-      P.push(`<line x1="${L}" y1="${y(T1)}" x2="${L+PW}" y2="${y(T1)}" stroke="#C9A2FF"
-               stroke-width="1.1" stroke-dasharray="3 4" opacity=".6"/>`);
-      P.push(`<text x="${L+PW-4}" y="${y(T1)+12}" fill="#C9A2FF" font-size="10"
-               text-anchor="end" opacity=".85">SWING-2 阈值 ${T1}</text>`);
-    }
-  }
-  // 合并视图：再叠加 SWING-3 曲线（点线）+ 它的阈值线
-  if(sc3){
-    let d3='';
-    for(let a=i0;a<=i1;a++) d3+=(a>i0?'L':'M')+x(a).toFixed(1)+' '+y(sc3[a-i0]).toFixed(1);
-    P.push(`<path d="${d3}" fill="none" stroke="#FFB86B" stroke-width="1.5"
-             stroke-dasharray="1.5 3.5" opacity=".85" stroke-linejoin="round"/>`);
-    const T2=THR3();
-    if(T2!=null&&T2>=yMin&&T2<=yMax){
-      P.push(`<line x1="${L}" y1="${y(T2)}" x2="${L+PW}" y2="${y(T2)}" stroke="#FFB86B"
-               stroke-width="1.1" stroke-dasharray="3 4" opacity=".6"/>`);
-      P.push(`<text x="${L+6}" y="${y(T2)-5}" fill="#FFB86B" font-size="10"
-               opacity=".85">SWING-3 阈值 ${T2}（须回升）</text>`);
-    }
-  }
   // 信号点：一律是「低点买入」信号，画在曲线下方；样式 = 置信等级
   // （A 实心+光环 / B 实心 / C 空心。顶部信号已移除，不再有方向之分）
   const evs=EVS(B);
   evs.forEach(e=>{
     const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
     const g=gradeOf(e), col=GCOL[g]||GCOL.C;
-    /* 合并视图下，各信号点挂到各自模型的曲线上（回调底→主曲线 / 动量拐点→SWING-2 / 均线拐点→SWING-3） */
-    const useS=(sc2&&e.src==='macd')?sc2:((sc3&&e.src==='maslope')?sc3:sc);
-    const cx=x(a).toFixed(1), cyy=y(useS[a-i0]), cyc=cyy+12;
+    const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+12;
     P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
              stroke="${col}" stroke-width="1" opacity=".5"/>`);
     if(g==='A')
       P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="9.5" fill="none"
                stroke="${col}" stroke-width="1.4" opacity=".9"/>`);
     const fill=g==='C'?'none':col, sw=g==='C'?1.8:1.2;
-    if(sc2&&e.src==='macd')
-      P.push(`<path d="M${cx} ${(cyc-7).toFixed(1)} l6.5 7 l-6.5 7 l-6.5 -7 Z"
-               fill="${fill}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`);
-    else if(sc3&&e.src==='maslope')
-      P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="5.5"
-               fill="${fill}" stroke="${col}" stroke-width="${sw}"/>`);
-    else{
-      const ap=(cyc-8).toFixed(1), bs=(cyc+5).toFixed(1);
-      P.push(`<path d="M${cx} ${ap} l-6.5 ${(bs-ap)} l13 0 Z"
-               fill="${fill}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`);
-    }
+    const ap=(cyc-8).toFixed(1), bs=(cyc+5).toFixed(1);
+    P.push(`<path d="M${cx} ${ap} l-6.5 ${(bs-ap)} l13 0 Z"
+             fill="${fill}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`);
   });
   // 最新点标注（与左侧卡片同源，避免"对不上"）
   const lx=x(i1), ly=y(sc[N-1]);
@@ -636,7 +769,7 @@ function drawChart(){
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>`;
   const evmap={};
   EVS(B).forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
-  el._geo={x,y,sc,sc2,sc3,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,evmap,hold:HOLD};
+  el._geo={x,y,sc,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,evmap,hold:HOLD};
 
   const svg=el.querySelector('svg');
   svg.addEventListener('mousemove',ev=>{
@@ -666,9 +799,6 @@ function drawChart(){
               · ${whyOf(e,gg)}${rr}</div>`;
     }).join('');
     const lbl = MODE!=='swing' ? `情绪分值 <b>${fmt(g.sc[i],1)}</b>`
-      : SRC==='union'  ? `回调底 <b>${fmt(g.sc[i],1)}</b>　`
-                        +`动量拐点 <b style="color:#C9A2FF">${fmt((g.sc2||[])[i],1)}</b>　`
-                        +`均线拐点 <b style="color:#FFB86B">${fmt((g.sc3||[])[i],1)}</b>`
       : SRC==='swing2' ? `动量拐点 <b>${fmt(g.sc[i],1)}</b>`
       : SRC==='swing3' ? `均线拐点 <b>${fmt(g.sc[i],1)}</b>（越低＝均线跌得越急）`
       : `SWING 超卖度 <b>${fmt(g.sc[i],1)}</b>`;
@@ -717,12 +847,13 @@ const LEGEND_ONE_TAIL =
      <b style="color:#F5B544">▲</b>B 2~3　
      <b style="color:#96A5BA">△</b>C 仅自身</span>`;
 const LEGEND_UNION =
-  `<span><i style="background:var(--blu)"></i>回调底＝跌到哪了（SWING 实线，≤22 触发）</span>
-   <span><i style="background:#C9A2FF"></i>动量拐点＝跌得多快（SWING-2 虚线）</span>
-   <span><i style="background:#FFB86B"></i>均线拐点＝均线还跌得多急（SWING-3 点线，≤10 且须回升）</span>
+  `<span style="color:var(--yel)"><b>三个模型各画一张图</b>（刻度不同，不要横着比高低）</span>
+   <span><i style="background:var(--blu)"></i>回调底 SWING　≤22 触发</span>
+   <span><i style="background:#C9A2FF"></i>动量拐点 SWING-2　≤12 触发</span>
+   <span><i style="background:#FFB86B"></i>均线拐点 SWING-3　≤10 且当天须回升</span>
    <span><i style="background:#5C6E85"></i>指数收盘（右轴）</span>
-   <span><i style="background:var(--grn)"></i>≤ 阈值 入场区</span>
-   <span><i style="background:var(--yel)"></i>▲＝回调底　◆＝动量拐点　●＝均线拐点</span>
+   <span><i style="background:var(--grn)"></i>≤ 各自阈值＝入场区</span>
+   <span><i style="background:var(--yel)"></i>信号点</span>
    <span style="white-space:nowrap">等级＝当天有几个板块出信号（并集口径）：
      <b style="color:#4FD1E8">▲</b>S ≥5　
      <b style="color:#6FE39C">▲</b>A ≥4　
@@ -738,7 +869,14 @@ function renderMeta(){
   document.getElementById('gsum').textContent =
     SWG?'等级说明：共振强弱怎么看':'等级说明：A / B / C 怎么用';
   document.getElementById('gbody').innerHTML = SWG
-    ? `<b class="k">三个小波段模型各看一个维度</b>，信号几乎不重叠，合并起来信号最多：
+    ? `${SRC==='union'
+        ? `<b class="k">⚠️ 上面是三个模型各自一张图，不是一条曲线</b>：三者虽然都标 0~100，
+           但分值刻度的<b class="k">中心不同</b>（近 750 日分值中位数：回调底 58~70、
+           动量拐点 44~51、均线拐点 34~49）。叠在一张图上会让人误以为
+           「均线拐点特别超卖」—— 其实是刻度不同，不是更超卖。
+           所以每张图只跟自己比：看它离<b class="k">自己的阈值线</b>有多远。
+           <br>`:''}`
+      + `<b class="k">三个小波段模型各看一个维度</b>，信号几乎不重叠，合并起来信号最多：
          <b style="color:#5FA8FF">回调底</b>看「跌到哪了」、
          <b style="color:#C9A2FF">动量拐点</b>看「跌得还有多快」、
          <b style="color:#FFB86B">均线拐点</b>看「均线还跌得多急，且当天已经回升」。
@@ -802,25 +940,52 @@ function render(){
   const B=DATA[cur], S=SR(B);
   const v=S[S.length-1];
   const [txt,col]=state(v);
+  const SWG=MODE==='swing', UNION=(SWG&&SRC==='union');
   document.getElementById('bname').textContent=B.name+'　'+B.desc;
-  const sv=document.getElementById('sval'); sv.textContent=fmt(v,1); sv.style.color=col;
-  document.getElementById('stag').innerHTML=`<span class="tag" style="background:${col}22;color:${col};border:1px solid ${col}66">${txt}</span>`;
-  const prev=S[S.length-6]??S[0];
-  document.getElementById('schg').innerHTML=
-    `<div>截至 ${B.dates[B.dates.length-1]}　较5日前 <b style="color:${v>=prev?'var(--red)':'var(--grn)'}">${v-prev>=0?'+':''}${fmt(v-prev,1)}</b></div>
-     <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
-  // 刻度条：SENTI-1 是 −30~140 的绝对刻度，SWING 是 0~100 的超卖度
-  const SWG=MODE==='swing', T0=THR();
-  document.getElementById('barscale').innerHTML = SWG
-    ? `<span style="left:0%">0</span><span style="left:${T0}%">${T0}</span>`
-      + `<span style="left:60%">60</span><span style="left:100%">100</span>`
-    : `<span style="left:0%">-30</span><span style="left:18.75%">0</span>`
-      + `<span style="left:81.25%">100</span><span style="left:100%">140</span>`;
-  document.getElementById('barlab').innerHTML = SWG
-    ? '<span>超卖（入场区）</span><span>过热</span>'
-    : '<span>恐慌</span><span>贪婪</span>';
-  document.getElementById('mk').style.left =
-    (SWG ? Math.max(0,Math.min(100,v)) : Math.max(0,Math.min(100,(v+30)/160*100)))+'%';
+  const sv=document.getElementById('sval');
+  const bar=document.querySelector('.bar');
+  const bsEl=document.getElementById('barscale'), blEl=document.getElementById('barlab');
+  if(UNION){
+    /* 合并视图：三个模型刻度不同，卡片里就并排列三个数，各自跟自己的阈值比 */
+    sv.className='big3';
+    sv.innerHTML=SUB3.map(c=>{
+      const arr=(c.key==='swing'?(B.swing||[]):(c.key==='swing2'?(B.swing2||[]):(B.swing3||[])));
+      const vv=arr.length?arr[arr.length-1]:null;
+      const th=c.key==='swing'?SW().thr:(c.key==='swing2'?SRC2().thr:SRC3().thr);
+      const hit=(vv!=null&&vv<=th);
+      return `<div class="row"><span class="nm">${c.short}</span>`
+        +`<span class="v" style="color:${c.color}">${fmt(vv,1)}</span>`
+        +`<span class="th">阈值 ≤${th}${hit?'　<b style="color:#6FE39C">已达</b>':''}</span></div>`;
+    }).join('');
+    document.getElementById('stag').innerHTML=
+      `<span class="tag" style="background:#F5B54422;color:#F5B544;border:1px solid #F5B54466">三个模型刻度不同 · 各自跟自己比</span>`;
+    document.getElementById('schg').innerHTML=
+      `<div>截至 ${B.dates[B.dates.length-1]}</div>
+       <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
+    /* 单刻度条对三个刻度没有意义 → 合并视图下隐藏 */
+    if(bar) bar.style.display='none';
+    bsEl.style.display='none'; blEl.style.display='none';
+  }else{
+    sv.className='big'; sv.style.color=col; sv.textContent=fmt(v,1);
+    document.getElementById('stag').innerHTML=`<span class="tag" style="background:${col}22;color:${col};border:1px solid ${col}66">${txt}</span>`;
+    const prev=S[S.length-6]??S[0];
+    document.getElementById('schg').innerHTML=
+      `<div>截至 ${B.dates[B.dates.length-1]}　较5日前 <b style="color:${v>=prev?'var(--red)':'var(--grn)'}">${v-prev>=0?'+':''}${fmt(v-prev,1)}</b></div>
+       <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
+    // 刻度条：SENTI-1 是 −30~140 的绝对刻度，SWING 是 0~100 的超卖度
+    const T0=THR();
+    bsEl.style.display=''; blEl.style.display=''; if(bar) bar.style.display='';
+    bsEl.innerHTML = SWG
+      ? `<span style="left:0%">0</span><span style="left:${T0}%">${T0}</span>`
+        + `<span style="left:60%">60</span><span style="left:100%">100</span>`
+      : `<span style="left:0%">-30</span><span style="left:18.75%">0</span>`
+        + `<span style="left:81.25%">100</span><span style="left:100%">140</span>`;
+    blEl.innerHTML = SWG
+      ? '<span>超卖（入场区）</span><span>过热</span>'
+      : '<span>恐慌</span><span>贪婪</span>';
+    document.getElementById('mk').style.left =
+      (SWG ? Math.max(0,Math.min(100,v)) : Math.max(0,Math.min(100,(v+30)/160*100)))+'%';
+  }
   drawChart();
 
   // 最近一次信号（信号表已移除，这里保留最关键的回溯信息）

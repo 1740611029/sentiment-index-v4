@@ -45,6 +45,10 @@ python _explore/smoke_page.py                   # ★ 改完页面 JS 必跑
 清理用 `netstat -ano | grep 8779` + PowerShell `Stop-Process -Id`（Git Bash 下别用 `taskkill //PID`，路径会被转换搞坏）。
 ⚠️ curl 探测本机端口必须加 `--noproxy '*'`。
 
+⛔ **不要主动 push**。用户没明确说「推送 / push」时，只做本地 commit，
+不执行 `git push`、也不跑 `push_api.py`（推送属对外动作，等明确指令）。
+提交时按路径 `git add`，不要 `git add -A` 后不带路径 commit。
+
 ---
 
 ## 2. 七条铁律（违反会得出漂亮但错误的结论）
@@ -134,6 +138,8 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 | `store.EVENT_GAP` / `cluster_events` | 同步更新 `DELIVERY.md` §14.5 + 页面图例文案 + `run.py stats` 的事件级表 |
 | 新增验证脚本 | 命名沿用 `dNN.py`（模型/回测类）或 `sNN.py`（小波段/因子搜索类），在 `DELIVERY.md` 脚本索引里登记 |
 | **新增小波段模型** | 照 `DELIVERY.md` §13 的清单走：`senti/swingN.py` + `data/panels_swingN/` + `store.py` 的 `union_events`/`summary`/`to_json` + 页面 `SRCS`/曲线/图例/悬停 + `run.py stats` + README/DELIVERY/本文件三处同步 |
+| 合并视图（`drawUnion` / `SUB3` / `.subchart`） | ⛔ **禁止改回「一张图叠三条曲线」** —— 三个模型刻度不可横比（`DELIVERY.md` §17）。改完跑 `smoke_page.py` 第 ④ 段（断言 3 张子图 / 3 条主折线 / 3 条阈值线 / 信号点计数 / 卡片 `big3` / 单刻度条隐藏） |
+| `.subchart` 的 padding / border | `drawUnion` 里 `W = cvW − 26`（12px×2 padding + 1px×2 border），改 padding 必须同步改这个数，否则 viewBox 比容器宽、SVG 被缩到 ~98% |
 
 ⚠️ **改 `index.html` 时不要并行发多个 Edit** —— 同一文件会互相覆盖，只有最后一条生效。
 
@@ -331,3 +337,5 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 - [ ] 新增/改动小波段模型 → **三个窗口**（近3年 / 近5.7年 / 全程）都报过，
       且**与现模型的 Jaccard 一并给出**（正交才有增量）
 - [ ] 页面加了曲线 → `_explore/smoke_page.py` 里对应的颜色/信号源清单也加上了
+- [ ] 往同一张图上叠第二个模型之前，先确认**两者分值刻度可比**（算「50 分」在各自
+      分布里的分位）。不可比就**分成多张图**，不要叠 —— 否则用户会误读成「某个模型更超卖」
