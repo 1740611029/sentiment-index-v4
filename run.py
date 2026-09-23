@@ -1,9 +1,13 @@
 """A股板块恐贪情绪指数 v4 —— 命令行入口。
 
-  python run.py build     重建个股指标 + 面板缓存
+  python run.py refresh   抓新数据 + 重建全部面板（**唯一会联网的命令**）
+  python run.py build     重建个股指标 + 面板缓存（只读本地缓存）
   python run.py update    重建面板缓存（复用个股指标）
   python run.py stats     打印各板块命中率
   python run.py serve     启动网页（默认 8779）
+
+⚠️ update / build 都**不联网**：数据链的源头是本地缓存，重算一万遍日期也不会前进。
+   要让页面日期往前走，必须 `refresh`。详见 senti/fetch.py 的模块说明。
 """
 from __future__ import annotations
 
@@ -22,6 +26,28 @@ def cmd_build(args):
 def cmd_update(args):
     store.build_and_cache(force=True)
     print("完成：面板缓存已重建")
+    print("⚠️ 注意：update 不抓新数据，last_date 不会前进。要更新数据请用 refresh。")
+
+
+def cmd_refresh(args):
+    """抓新数据 → 重建全部面板。这是本项目唯一会联网的命令。"""
+    from senti import fetch
+
+    r = fetch.refresh(lookback=args.lookback, workers=args.workers,
+                      skip_stocks=args.index_only)
+
+    print("⑤ 重建个股指标长表 ...")
+    data.build_stock_indicators(force=True)
+    print("⑥ 重建 SENTI-1 面板 ...")
+    store.build_and_cache(force=True)
+    print("⑦ 重建三个小波段面板（必须 force，否则继续用旧面板）...")
+    store.rebuild_swing_panels(force=True)
+
+    m = store.meta()
+    print(f"完成：last_date = {m['last_date']}　built_at = {m['built_at']}")
+    if m["last_date"] < r["cap"]:
+        print(f"⚠️ 面板末日 {m['last_date']} 早于数据末日 {r['cap']}，"
+              f"通常是某个板块的指数接口还没出当天数据（个股比指数早一天）。")
 
 
 def cmd_stats(args):
@@ -172,7 +198,13 @@ def main():
     sub = ap.add_subparsers(dest="cmd")
 
     sub.add_parser("build", help="重建全部（个股指标 + 面板）")
-    sub.add_parser("update", help="重建面板缓存")
+    sub.add_parser("update", help="重建面板缓存（不抓新数据）")
+    pr = sub.add_parser("refresh", help="抓新数据 + 重建全部面板（联网）")
+    pr.add_argument("--lookback", type=int, default=120,
+                    help="个股增量抓取的日历日回溯（默认 120，需覆盖缓存末日到今天）")
+    pr.add_argument("--workers", type=int, default=8, help="个股抓取并发数（默认 8）")
+    pr.add_argument("--index-only", action="store_true",
+                    help="只抓指数、跳过个股（调试用；广度因子会缺当天数据）")
     sub.add_parser("stats", help="打印命中率")
     p = sub.add_parser("serve", help="启动网页")
     p.add_argument("--port", type=int, default=C.WEB_PORT)
@@ -183,6 +215,8 @@ def main():
         cmd_build(args)
     elif args.cmd == "update":
         cmd_update(args)
+    elif args.cmd == "refresh":
+        cmd_refresh(args)
     elif args.cmd == "stats":
         cmd_stats(args)
     elif args.cmd == "serve":

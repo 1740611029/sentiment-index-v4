@@ -20,6 +20,10 @@ warnings.filterwarnings("ignore")
 
 
 MKT_DIR = os.path.join(C.CACHE_DIR, "market")
+# 本项目自己抓的个股增量（`run.py refresh` 写入，见 fetch.py）。
+# 上游 v1/v2 缓存是**只读复用**的、时间停在他们最后一次更新；
+# 这一段是唯一会随时间前进的数据。
+DELTA_DIR = os.path.join(C.CACHE_DIR, "stocks_delta")
 BNA_PCT_MIN = 60.0     # 「估值已投降」的分位门槛，见 store.py 里的说明
 
 
@@ -92,14 +96,22 @@ def load_universe(board_key: str) -> list[str]:
 
 
 # ---------------------------------------------------------------- 个股日线
-def _stock_files() -> dict[str, tuple[str, str]]:
-    """code -> (v1_path, v2_path)，任一可为 None。"""
-    out: dict[str, tuple[str, str]] = {}
+def _stock_files() -> dict[str, tuple[str, str, str]]:
+    """code -> (v1_path, v2_path, delta_path)，任一可为 None。
+
+    v1 / v2 = 上游只读缓存；delta = 本项目 `run.py refresh` 抓到的最新增量。
+    优先级由 load_stock 决定：delta > v2 > v1。
+    """
+    out: dict[str, tuple] = {}
     for tag, key in (("v1", "v1_stocks"), ("v2", "v2_stocks")):
         for p in glob.glob(os.path.join(C.UPSTREAM[key], "*.parquet")):
             code = os.path.splitext(os.path.basename(p))[0].zfill(6)
-            old = out.get(code, (None, None))
-            out[code] = (p, old[1]) if tag == "v1" else (old[0], p)
+            a, b, c = out.get(code, (None, None, None))
+            out[code] = (p, b, c) if tag == "v1" else (a, p, c)
+    for p in glob.glob(os.path.join(DELTA_DIR, "*.parquet")):
+        code = os.path.splitext(os.path.basename(p))[0].zfill(6)
+        a, b, _ = out.get(code, (None, None, None))
+        out[code] = (a, b, p)
     return out
 
 
@@ -116,23 +128,66 @@ def _load_hist(code: str):
     return d
 
 
-def load_stock(code: str, files: dict | None = None) -> pd.DataFrame:
-    """合并 长历史 + v1 + v2 缓存，越新越优先。
+def _ratio_to(base: pd.Series, other: pd.Series, min_rows: int = 5) -> float | None:
+    """重叠期的常数比率 other → base（前复权基准不同，qfq 是乘性调整）。
 
-    长历史段用重叠期的常数比率对齐到缓存口径；比率不稳定时放弃长历史。
+    比率不稳定（期间有分红送转 / 源换了口径）时返回 None，调用方应放弃拼接。
+    """
+    j = pd.concat([base.rename("a"), other.rename("b")], axis=1).dropna()
+    if len(j) < min_rows:
+        return None
+    r = (j["a"] / j["b"]).replace([np.inf, -np.inf], np.nan).dropna()
+    if not len(r) or not r.mean() or (r.std() / abs(r.mean())) > 0.02:
+        return None
+    return float(r.median())
+
+
+def load_stock(code: str, files: dict | None = None) -> pd.DataFrame:
+    """合并 delta + v1 + v2 + 长历史，越新越优先。
+
+    两种拼接都要做**常数比率对齐**，因为前复权基准不同：
+      · 长历史（锚定 2023-06）→ 缓存口径
+      · delta（锚定抓取当日）→ 缓存口径
+    比率不稳定时放弃该段。delta 只追加「比缓存更新的日期」，不覆盖历史 ——
+    覆盖会让已发布的分数随抓取日漂移。
     """
     files = files or _stock_files()
-    v1, v2 = files.get(code, (None, None))
+    v1, v2, dl = files.get(code, (None, None, None))
     frames = []
     for p in (v1, v2):
         if p and os.path.exists(p):
             d = pd.read_parquet(p)
             d["date"] = pd.to_datetime(d["date"])
             frames.append(d)
-    if not frames:
-        return pd.DataFrame()
-    df = pd.concat(frames, ignore_index=True)
-    df = df.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
+    if frames:
+        df = pd.concat(frames, ignore_index=True)
+        df = df.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
+    else:
+        df = pd.DataFrame()
+
+    # ---- 本项目抓的增量：只追加，并按重叠期比率对齐到缓存口径 ----
+    if dl and os.path.exists(dl):
+        d = pd.read_parquet(dl)
+        d["date"] = pd.to_datetime(d["date"])
+        d = d.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
+        if len(df) == 0:
+            df = d
+        else:
+            cut = df["date"].max()
+            r = _ratio_to(df.set_index("date")["close"].astype(float),
+                          d.set_index("date")["close"].astype(float))
+            if r is not None and abs(r - 1.0) > 1e-9:
+                for c in ("open", "high", "low", "close"):
+                    if c in d.columns:
+                        d[c] = d[c] * r
+            new = d[d["date"] > cut]
+            if len(new):
+                df = pd.concat([df, new], ignore_index=True)
+                df = (df.sort_values("date").drop_duplicates("date", keep="last")
+                        .reset_index(drop=True))
+
+    if len(df) == 0:
+        return df
 
     h = _load_hist(code)
     if h is None or len(h) == 0:

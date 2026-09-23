@@ -124,7 +124,8 @@ Python 环境：`C:/Users/wr/.workbuddy-ai/binaries/python/envs/default/Scripts/
 cd D:\情绪指标4
 
 python run.py serve --no-browser --port 8779     # 启动网页 → http://127.0.0.1:8779
-python run.py update                              # 重建面板缓存（日常更新数据用）
+python run.py refresh                             # ★ 抓新数据 + 重建全部面板（唯一联网，约 16 分钟）
+python run.py update                              # 只重建面板缓存（不抓数据，日期不会前进）
 python run.py stats                               # 命令行打印各板块命中率
 python run.py build --force                       # 强制重建全部（首次或改模型后）
 python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑的冒烟测试
@@ -132,7 +133,12 @@ python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑�
 
 也可以直接双击根目录的 **`启动网站.bat`** / **`更新数据.bat`**。
 
+> ⚠️ **想更新到最新交易日，必须用 `refresh`。**
+> `update` / `build` 都**不联网** —— 数据链的源头是本地缓存，重算一万遍日期也不会前进
+> （详见 `DELIVERY.md` 第 18 节）。
+>
 > ⚠️ 改了 `senti/` 下的 Python 模块后**必须重启服务**（模板热更新，模块不热更新）。
+> 但数据更新**不需要**重启：服务会按 `data/meta.json` 的 `built_at` 自动失效重算。
 
 ---
 
@@ -269,11 +275,12 @@ score = 0.5·L（广度情绪） + 0.5·T（价格过热） − 25·cf_b（恐�
 D:\情绪指标4
 ├── README.md                 本文件（项目介绍 + 功能说明，随功能变更同步更新）
 ├── DELIVERY.md               ★ 深度交付说明（公式/参数/数字出处/边界/否决清单）
-├── run.py                    CLI：build / update / stats / serve
+├── run.py                    CLI：refresh / build / update / stats / serve
 ├── 启动网站.bat / 更新数据.bat  双击即可运行
 ├── senti/
 │   ├── config.py             板块定义、路径、模型参数
 │   ├── data.py               指数/个股/成分股加载 + 破净率、融资余额
+│   ├── fetch.py              ★ 唯一联网的模块（`run.py refresh` 的抓数层）
 │   ├── factors.py            板块原始因子面板
 │   ├── model.py              ★ SENTI-1 公式（L / T / U / cf_b / score）
 │   ├── swing.py              小波段 SWING（回调底）
@@ -283,9 +290,12 @@ D:\情绪指标4
 │   ├── backtest.py           回测口径
 │   └── web.py                服务
 ├── web/templates/index.html  ★ 页面
-├── data/cache/               数据缓存（417M，已 gitignore，可重新生成）
+├── data/cache/               数据缓存（417M+，已 gitignore，可重新生成）
+│   ├── index_long/           6 板块指数长历史（本项目抓）
+│   ├── stocks_delta/         个股增量（本项目抓，唯一随时间前进的段）
+│   └── stock_ind.parquet     个股指标长表（730 万行）
 ├── data/panels_swing{,2,3}/  三个小波段模型的面板缓存
-└── _explore/                 验证脚本（d1~d99 + s1~s16，正式代码不依赖）
+└── _explore/                 验证脚本（d1~d99 + s1~s38，正式代码不依赖）
     ├── longhist.py           长历史 8 宽基面板（验证用，非交付口径）
     ├── s8~s16.py             小波段模型搜索框架（因子广扫 / 阈值 / 正交性 / 确认层）
     └── smoke_page.py         ★ 页面冒烟测试（改完 JS 必跑）
@@ -299,9 +309,34 @@ D:\情绪指标4
 ## 7. 数据
 
 - 来源：akshare（指数行情、成分股、融资余额、破净股统计）
-- 缓存：`data/cache/`（个股指标 729 万行 parquet、指数历史、市场级数据）
+- 缓存：`data/cache/`（个股指标 730 万行 parquet、指数历史、市场级数据）
 - 回看窗口：默认近 3 年（`2023-09-20` 起），长历史验证覆盖 2013~2026
 - 所有外部数据统一 `shift(1)`（两融次日公布、破净依赖季报净资产），无前视
+
+### 数据怎么往前推（`run.py refresh`）
+
+| 层 | 位置 | 谁更新 |
+|---|---|---|
+| 指数长历史 | `data/cache/index_long/` | 本项目自己抓（新浪） |
+| 个股增量 | `data/cache/stocks_delta/` | 本项目自己抓（新浪，**唯一随时间前进的段**） |
+| 上游个股缓存 | `D:\情绪指标{,2}\data\cache\stocks` | 外部，**只读复用**，本项目不写 |
+| 模型面板 | `data/panels*`（4 类） | 本项目从上面三层重算 |
+
+`refresh` 七步：抓个股并集 → 抓 5 板块指数 → 续算中证2000 → 对齐日期轴 →
+重建个股指标 → 重建 SENTI-1 面板 → 重建三个小波段面板。
+
+**几条刻意的保守设计**（都是为了「刷新不能把历史改掉」）：
+
+- 指数和个股都**只追加**、绝不覆盖已有历史 —— 否则已发布的分数会随抓取日漂移
+- 指数追加前做**衔接校验**（新浪 vs 本地最后一天偏差 > 0.5% 就跳过报警）
+- 个股前复权基准不同 → 用重叠期求常数比率对齐（实测 12/12 样本比率 = 1.000000）
+- **中证2000 是等权合成序列**，不是官方 932000 指数，没有免费源。
+  与官方日收益相关 0.9899、点位比值 0.42~0.47 缓慢漂移 →
+  **只能看它的相对变化，不能跟官方点位比**
+- 刷新后 6 板块统计数字**完全不变**（纯追加），这一点每次刷新都该复核
+
+> 已知：抓数当日个股比指数早一天，日期轴会对齐到最短的那个（截掉的 1 天下次自动补回）。
+> 80 只票（B股 / 北交所 / CDR）新浪没有接口，沿用上游旧数据。
 
 ---
 

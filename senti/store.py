@@ -243,6 +243,34 @@ def swing3_panels() -> dict[str, pd.DataFrame]:
     return _swing3_cache
 
 
+def clear_caches() -> None:
+    """清掉进程内的三个小波段面板缓存。
+
+    为什么需要：`swing_panels()` 用模块级 `_swing_cache` 缓存，
+    常驻的 Web 服务进程在 `run.py refresh` 跑完后仍会返回旧面板
+    （主面板 build_and_cache() 每次都读 parquet，不受影响）。
+    web.ensure() 在检测到 meta.built_at 变化时会调用它。
+    """
+    _swing_cache.clear()
+    _swing2_cache.clear()
+    _swing3_cache.clear()
+
+
+def rebuild_swing_panels(force: bool = True) -> None:
+    """强制重建三个小波段面板（`run.py refresh` / `build` 用）。
+
+    ⚠️ 为什么必须单独有这个函数：`swing*.build_and_cache()` 默认 `force=False`，
+    parquet 存在就直接 `load()`。所以 `run.py update` **根本不会刷新小波段面板** ——
+    实测 2026-09-23 16:44 跑过 update 之后，`data/panels/` 是新写的，
+    而 `data/panels_swing/` 的 mtime 还停在 09-21 18:52。
+    数据一旦更新，这里不 force 就会继续用旧面板，页面上的小波段分值会不动。
+    """
+    for mod, cache in ((swing, _swing_cache), (swing2, _swing2_cache),
+                       (swing3, _swing3_cache)):
+        cache.clear()
+        cache.update(mod.build_and_cache(force=force))
+
+
 def union_events(board: str, q: pd.DataFrame, p2: pd.DataFrame, p3: pd.DataFrame,
                  sreso: pd.Series, s2reso: pd.Series, s3reso: pd.Series) -> list[dict]:
     """把 SWING / SWING-2 / SWING-3 的信号按日期合并去重（默认视图）。

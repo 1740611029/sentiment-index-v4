@@ -17,14 +17,27 @@ def create_app(panels: dict | None = None) -> Flask:
     app = Flask(__name__, template_folder=TPL_DIR)
     app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.jinja_env.auto_reload = True
-    _state = {"panels": panels, "payload": None, "summary": None}
+    _state = {"panels": panels, "payload": None, "summary": None, "stamp": None}
 
     def ensure():
-        if _state["panels"] is None:
-            _state["panels"] = store.build_and_cache()
-        if _state["payload"] is None:
-            _state["payload"] = store.to_json(_state["panels"])
-            _state["summary"] = store.summary(_state["panels"])
+        """面板 + 序列化结果按 meta.built_at 失效重算。
+
+        为什么不能只算一次：`run.py refresh` 是在**另一个进程**里跑完的，
+        常驻的服务进程如果一直抱着内存里的旧 payload，用户跑完更新、刷新页面
+        还是看到旧数据（还要手动重启服务）。这里用 meta.json 的 built_at 当版本号。
+        """
+        if panels is not None:                      # 注入面板（测试用），只算一次
+            if _state["payload"] is None:
+                _state["payload"] = store.to_json(panels)
+                _state["summary"] = store.summary(panels)
+            return _state
+        m = store.meta()
+        stamp = (m.get("built_at"), m.get("last_date"))
+        if _state["stamp"] != stamp:
+            store.clear_caches()                    # 小波段面板有进程内缓存，必须清
+            p = store.build_and_cache()
+            _state.update({"panels": p, "payload": store.to_json(p),
+                           "summary": store.summary(p), "stamp": stamp})
         return _state
 
     @app.route("/")

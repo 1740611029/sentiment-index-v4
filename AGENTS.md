@@ -33,13 +33,20 @@ C:\Users\wr\.workbuddy-ai\binaries\python\envs\default\Scripts\python.exe
 ```bash
 cd D:\情绪指标4
 python run.py serve --no-browser --port 8779   # 起服务 → http://127.0.0.1:8779
-python run.py update                            # 重建面板缓存（日常更新）
+python run.py refresh                           # ★ 抓新数据 + 重建全部面板（唯一联网，约 16 分钟）
+python run.py update                            # 只重建面板缓存（不抓数据，last_date 不会前进）
 python run.py build --force                     # 强制重建全部（改模型后）
 python run.py stats                             # 命令行打印命中率
 python _explore/smoke_page.py                   # ★ 改完页面 JS 必跑
 ```
 
+⛔ **`update` / `build` 不联网，永远推不动数据日期。** 数据链的源头是
+`data/cache/index_long` + `data/cache/stocks_delta`（本项目自己抓）+
+上游 `D:\情绪指标{,2}\data\cache`（只读复用）。要让页面日期前进只能 `refresh`。
+详见 `DELIVERY.md` 第 18 节。
+
 ⚠️ 改了 `senti/` 下的 Python 模块**必须重启服务**（模板热更新，模块不热更新）。
+但**数据更新不需要重启**：`web.ensure()` 按 `meta.built_at` 自动失效重算。
 ⚠️ 端口 8779 上常驻着旧的 python 进程，新 serve 会静默失败。
 排查 `curl --noproxy '*' http://127.0.0.1:8779/api/data` 看 `meta.built_at` 是不是旧的；
 清理用 `netstat -ano | grep 8779` + PowerShell `Stop-Process -Id`（Git Bash 下别用 `taskkill //PID`，路径会被转换搞坏）。
@@ -51,7 +58,7 @@ python _explore/smoke_page.py                   # ★ 改完页面 JS 必跑
 
 ---
 
-## 2. 七条铁律（违反会得出漂亮但错误的结论）
+## 2. 八条铁律（违反会得出漂亮但错误的结论）
 
 ### 铁律一：锚点必须因果
 分位锚点必须写成 `x.rolling(750, min_periods=500).quantile(q).shift(1)`。
@@ -126,6 +133,29 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 
 ---
 
+### 铁律八：刷新数据只能「纯追加」，每次刷新后必须复核统计数字不变（2026-09-23 新增）
+
+本项目的数据链里，**历史段是拼接/合成出来的**（`index_long` 的长历史、
+中证2000 的等权合成序列、上游 v1/v2 的前复权缓存），
+**它们的前复权基准 / 成分股清单都和「今天」不同**。所以：
+
+⛔ **不要用「抓到的全序列」去覆盖本地已有历史。**
+⛔ **不要重算历史段**（成分股清单变了，历史会漂移）。
+⛔ **不要把官方点位接到合成序列上**（中证2000 会瞬间跳 2 倍）。
+
+规矩是：**只追加 `> 本地末日` 的行**；拼接前先做**衔接校验**
+（重叠期偏差 > 阈值就跳过并报警，而不是硬接）；前复权基准不同时用**重叠期常数比率**对齐。
+
+**每次 `run.py refresh` 之后必须复核「刷新前后统计数字完全一致」**
+（SENTI-1 底部 17/19、SWING 41/64、SWING-2 68/99、SWING-3 40/47、并集 189/70.9%）。
+**只要有一个数字变了，就说明刷新改写了历史** —— 那是 bug，不是「数据变好了」。
+
+两条独立的自查手段：
+1. `delta − 上游缓存 = 0`（增量没引入新股票 → 广度分母不变）；
+2. 拿刷新前的某个已知读数对比（例如 2026-09-18 大盘 SWING/SWING-2/SWING-3 = 64.0/38.9/23.0）。
+
+---
+
 ## 3. 改动地图（改什么 → 必须做什么）
 
 | 改了这里 | 还必须做 |
@@ -140,6 +170,8 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 | **新增小波段模型** | 照 `DELIVERY.md` §13 的清单走：`senti/swingN.py` + `data/panels_swingN/` + `store.py` 的 `union_events`/`summary`/`to_json` + 页面 `SRCS`/曲线/图例/悬停 + `run.py stats` + README/DELIVERY/本文件三处同步 |
 | 合并视图（`drawUnion` / `SUB3` / `.subchart`） | ⛔ **禁止改回「一张图叠三条曲线」** —— 三个模型刻度不可横比（`DELIVERY.md` §17）。改完跑 `smoke_page.py` 第 ④ 段（断言 3 张子图 / 3 条主折线 / 3 条阈值线 / 信号点计数 / 卡片 `big3` / 单刻度条隐藏） |
 | `.subchart` 的 padding / border | `drawUnion` 里 `W = cvW − 26`（12px×2 padding + 1px×2 border），改 padding 必须同步改这个数，否则 viewBox 比容器宽、SVG 被缩到 ~98% |
+| `senti/fetch.py` / `run.py refresh` / 数据源 | 同步 `DELIVERY.md` §18 + `README.md` §7 + 本文件 §6。改完**必须实跑一次 refresh** 并复核「刷新前后统计数字完全一致」（纯追加的证据） |
+| 面板缓存失效逻辑（`store.clear_caches` / `rebuild_swing_panels` / `web.ensure`） | ⛔ 不要把 `swing*.build_and_cache()` 的 `force` 默认值改回 `False`；⛔ 不要去掉 `web.ensure()` 的 `built_at` 版本号判断（否则用户跑完 `更新数据.bat` 不重启服务看不到新数据） |
 
 ⚠️ **改 `index.html` 时不要并行发多个 Edit** —— 同一文件会互相覆盖，只有最后一条生效。
 
@@ -294,6 +326,18 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 ## 6. 数据与运行环境的已知坑
 
 - 数据源：akshare。上游复用 `D:\情绪指标\data\cache\stocks` + `D:\情绪指标2\data\cache\stocks`（**只读，别写**）。
+- **数据链分四层，只有前两层会随时间前进**：
+  `data/cache/index_long/`（本项目抓）+ `data/cache/stocks_delta/`（本项目抓，唯一新数据）
+  → 上游 v1/v2 个股缓存（外部，只读）→ `data/panels*`（从上面重算）。
+  **`run.py update` / `build` 不联网，永远推不动 `last_date`**（`DELIVERY.md` §18）。
+- **中证2000 没有免费数据源**：新浪/腾讯的 `sh000932` 都不是中证2000。
+  `data/cache/index_long/CSI2000.parquet` 是**等权合成序列**（成分股日涨跌幅均值 → clip → 链式累乘），
+  与官方 932000 日收益相关 0.9899、**点位比值 0.42~0.47 且缓慢漂移**。
+  ⛔ 不能拿它的点位跟官方指数比；⛔ 不能把官方点位接上去（会瞬间跳 2 倍）。
+  合成必须用**均值**不能用中位数（中位数合成三年 −53% vs 均值 +59.8%）。
+- **80 只票新浪抓不到**（900xxx 沪市B股、920xxx 北交所、689009 CDR），沿用上游旧数据。
+  它们在上游缓存里也没有 → 广度分母不受影响。
+- **抓数当日个股比指数早一天** → `_align_boards()` 把 6 板块日期轴截到最短，截掉的 1 天下次自动补回（幂等）。
 - `HIST_START = 2019-01-01`（锚点预热用），展示从 `BACKTEST_START = 2023-09-20` 起。
 - 所有外部数据统一 `shift(1)`（两融次日公布、破净依赖季报净资产），无前视。
 - 长历史三个**数据问题**（别当模型问题）：
@@ -318,6 +362,8 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 
 - [ ] 改了 JS → 跑过 `_explore/smoke_page.py`
 - [ ] 改了 `senti/*.py` → 服务重启过，且 `meta.built_at` 是新的
+- [ ] 跑过 `run.py refresh` → **复核过「刷新前后统计数字完全一致」**（铁律八）；
+      `meta.last_date` 已前进，4 类 `panels*` 的 mtime 都是新的（不是只有 `panels/`）
 - [ ] 改了模型/参数/结论 → `DELIVERY.md` 已同步（含样本量 + 出处脚本编号）
 - [ ] 功能/交互/板块变化 → `README.md` 已同步
 - [ ] 任何新结论都做过**逐日模拟**、对照过**随机基线**、报了 **p 值/置信区间**
