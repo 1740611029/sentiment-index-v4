@@ -297,6 +297,50 @@ def _stat(events: list[dict]) -> tuple[int, int, int]:
             sum(1 for e in done if e.get("notrap")))
 
 
+# ---- 事件级统计（2026-09-23 新增）----
+# 问题：同一波下跌里，SWING 可能 9/10 触发、SWING-2 9/12、SWING-3 9/16，
+#   只按「同日去重」会算成 3 次信号 —— 但实盘只买得到第一枪。
+#   实测（_explore/s19）近 3 年并集 189 次信号里有 28% 是同板块 ±4 自然日内的重复。
+# 做法：同板块内相隔 ≤ EVENT_GAP 自然日的信号聚成一件事，只保留**第一枪**。
+# 这是本项目一贯的「不许把同一件事重复计数」（对比 SENTI-1 的
+#   「17 次信号实际只对应 5 次市场级事件」）。
+# 注意：信号级与事件级都要报。信号级回答「页面画了多少个点」，
+#   事件级回答「有多少次独立的入场机会」——后者才是命中率的诚实分母。
+EVENT_GAP = 4
+
+
+def cluster_events(by_board: dict[str, list[dict]]) -> list[dict]:
+    """同一板块内相隔 ≤EVENT_GAP 自然日的信号聚成一件事，只保留第一枪。"""
+    firsts: list[dict] = []
+    for _b, evs in by_board.items():
+        last = None
+        for e in sorted(evs, key=lambda x: x["date"]):
+            d = pd.Timestamp(e["date"])
+            if last is None or (d - last).days > EVENT_GAP:
+                firsts.append(e)
+                last = d
+    return firsts
+
+
+def _wilson(k: int, n: int, z: float = 1.96) -> float:
+    if n == 0:
+        return float("nan")
+    p = k / n
+    den = 1 + z * z / n
+    c_ = p + z * z / (2 * n)
+    m_ = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return 100 * (c_ - m_) / den
+
+
+def _estat(events: list[dict]) -> dict:
+    done = [e for e in events if e.get("ok") is not None]
+    n = len(done)
+    k = sum(1 for e in done if e["ok"])
+    return {"n": n, "ok": k, "rate": round(k / n * 100, 1) if n else None,
+            "wilson": (round(_wilson(k, n), 1) if n else None),
+            "notrap": sum(1 for e in done if e.get("notrap"))}
+
+
 def summary(panels: dict[str, pd.DataFrame]) -> dict:
     tot = {"b_n": 0, "b_ok": 0, "b_nt": 0,
            "r_n": 0, "r_ok": 0, "r_nt": 0, "r_win60": 0, "r_n60": 0,
@@ -365,6 +409,15 @@ def summary(panels: dict[str, pd.DataFrame]) -> dict:
         uper[b] = {"n": n_, "ok": ok_, "nt": nt_,
                    "rate": round(ok_ / n_ * 100, 1) if n_ else None}
     ubase = round(float(np.mean([swing2.baseline(s2p[b]) for b in C.BOARD_ORDER])), 1)
+    # ---- 事件级统计（同板块 ±EVENT_GAP 自然日只算第一枪）----
+    m_ev = {
+        "swing": {b: swing.events(sp[b], sreso) for b in C.BOARD_ORDER},
+        "swing2": {b: swing2.events(s2p[b], s2reso) for b in C.BOARD_ORDER},
+        "swing3": {b: swing3.events(s3p[b], s3reso) for b in C.BOARD_ORDER},
+    }
+    ev_block = {"gap_days": EVENT_GAP, "union": _estat(cluster_events(uev))}
+    for k_ in ("swing", "swing2", "swing3"):
+        ev_block[k_] = _estat(cluster_events(m_ev[k_]))
     return {"total": tot, "per": per, "entry_thr": ENTRY_THR,
             "reso_min": RESONANCE_MIN, "bna_min": BNA_PCT_MIN,
             "bna_latest": (None if bna is None or len(bna) == 0
@@ -374,6 +427,7 @@ def summary(panels: dict[str, pd.DataFrame]) -> dict:
             "swing": swing.summary(sp),
             "swing2": swing2.summary(s2p),
             "swing3": swing3.summary(s3p),
+            "event": ev_block,
             "union": {"total": {"n": un, "ok": uok, "nt": unt, "pend": upend,
                                 "rate": round(uok / un * 100, 1) if un else None,
                                 "base": ubase},

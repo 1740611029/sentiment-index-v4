@@ -119,6 +119,25 @@ def cmd_stats(args):
               f"   未被套 {tu['nt']}/{tu['n']}   待验证 {tu['pend']}   基线 {tu['base']}%")
         print(f"  → 对比原两模型合并（143 次 / 66.4%）：信号 +32%、命中 +4.5pp，"
               f"两个维度同时上升")
+        # ---- 事件级（同板块 ±4 自然日只算第一枪）----
+        eblk = s.get("event")
+        if eblk:
+            print(f"\n  事件级（同板块 ±{eblk['gap_days']} 自然日算一件事，只算第一枪）")
+            print(f"  {'口径':<14}{'信号数':>8}{'事件数':>8}{'信号命中':>10}"
+                  f"{'事件命中':>10}{'下界':>9}")
+            for k_, lab in (("swing", "SWING"), ("swing2", "SWING-2"),
+                            ("swing3", "SWING-3"), ("union", "三模型合并")):
+                e_ = eblk[k_]
+                sig = (un["total"] if k_ == "union"
+                       else (s.get(k_) or {}).get("total", {}))
+                sn = sig.get("n")
+                sr = sig.get("rate")
+                print(f"  {lab:<14}{str(sn):>8}{e_['n']:>8}"
+                      f"{(str(sr) + '%') if sr is not None else '—':>10}"
+                      f"{(str(e_['rate']) + '%') if e_['rate'] is not None else '—':>10}"
+                      f"{(str(e_['wilson']) + '%') if e_['wilson'] is not None else '—':>9}")
+            print("  → 信号次数回答「页面画了几个点」，事件次数才是独立的入场机会数；")
+            print("    同一波下跌三个模型隔几天各触发一次，按同日去重会重复计数。")
         print("  已知边界：2015/2016 连环崩塌会连续误判（SWING-2 长历史 34.7%、"
               "SWING-3 2015 年 40%），这是「超卖抄底」整个范式的通病，"
               "同期现 SWING 价格部分也是 33% / 33%。")
