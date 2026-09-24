@@ -283,11 +283,16 @@ def fetch_stocks(codes: list[str], lookback: int = DEFAULT_LOOKBACK,
 def _align_boards(log=print):
     """把 6 个板块的日期轴对齐到最短的那个。
 
-    为什么必须对齐：`store.resonance()` 把 6 条分值放进一张宽表按公共日期轴求和，
-    某个板块缺一天，那天的共振数就会偏小（少算一个板块）。
-    个股数据比指数接口早一天出，中证2000 又是合成出来的，所以最容易出现错位。
+    为什么必须对齐：`store.resonance()` 把 6 条分值放进一张宽表按公共日期轴求和
+    （`S <= ENTRY_THR).sum(axis=1)`），某个板块缺一天，那天该板块就是 NaN、
+    比较结果恒为 False → **共振数会少算**（例如 6 个板块齐跌却只报 5）。
+    共振数直接决定 S/A/B 等级，所以宁可截齐也不能让它偏小。
 
-    截断掉的只是刚追加的最新 1~2 天，下一次 refresh 会自动补回来（幂等）。
+    各指数接口的发布时间不一致（实测 2026-09-23 17:55：
+    上证 / 沪深300 已出 09-23，而创业板还停在 09-22），
+    所以**晚上跑 refresh 经常只能更新到前一天** —— 这是正常的，不是坏了。
+
+    截断掉的只是刚追加的最新 1~2 天，下一次 refresh 会自动补回来（幂等，不丢数据）。
     """
     last = {}
     for b in C.BOARD_ORDER:
@@ -296,14 +301,21 @@ def _align_boards(log=print):
     cap = min(last.values())
     if len(set(last.values())) == 1:
         return cap, {}
-    log(f"  ⚠️ 板块日期轴不一致 → 按最短的 {cap.date()} 对齐（截掉刚追加的那几天，下次会补回）")
+    behind = {b: v for b, v in last.items() if v > cap}
+    log(f"  ⚠️ 各板块指数接口进度不一致，本次只能更新到 {cap.date()}：")
+    for b in C.BOARD_ORDER:
+        if last[b] > cap:
+            log(f"     {C.BOARDS[b]['name']:<8} 接口已有 {last[b].date()}"
+                f"（本地先截到 {cap.date()}）")
+        elif last[b] == cap:
+            log(f"     {C.BOARDS[b]['name']:<8} 接口最新 {last[b].date()} ← 最慢的，以它为准")
     for b in C.BOARD_ORDER:
         if last[b] > cap:
             fp = os.path.join(IDX_DIR, f"{b}.parquet")
             d = pd.read_parquet(fp)
             d["date"] = pd.to_datetime(d["date"])
             d[d["date"] <= cap].to_parquet(fp, index=False)
-            log(f"     {b:<8} {last[b].date()} → {cap.date()}")
+    log("     → 下次 refresh 会自动补上这几天，不需要其他操作。")
     return cap, {b: str(v.date()) for b, v in last.items()}
 
 

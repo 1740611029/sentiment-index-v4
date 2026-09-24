@@ -20,7 +20,10 @@ from senti import config as C, data, model, store, web
 def cmd_build(args):
     data.build_stock_indicators(force=True)
     store.build_and_cache(force=True)
-    print("完成：个股指标 + 面板缓存已重建")
+    # ⚠️ 必须显式重建：store.build_and_cache() 只管 SENTI-1 面板，
+    # 三个小波段各有独立模块与面板目录，且 build_and_cache() 默认 force=False。
+    store.rebuild_swing_panels(force=True)
+    print("完成：个股指标 + SENTI-1 面板 + 三个小波段面板已重建")
 
 
 def cmd_update(args):
@@ -45,9 +48,19 @@ def cmd_refresh(args):
 
     m = store.meta()
     print(f"完成：last_date = {m['last_date']}　built_at = {m['built_at']}")
-    if m["last_date"] < r["cap"]:
-        print(f"⚠️ 面板末日 {m['last_date']} 早于数据末日 {r['cap']}，"
-              f"通常是某个板块的指数接口还没出当天数据（个股比指数早一天）。")
+
+    # 指数接口进度不一致 → 说清「为什么没更新到接口最新的那天」，避免误以为又没生效
+    cap = r["cap"]
+    pre = r.get("before_align") or {}
+    behind = {b: d for b, d in pre.items() if d > cap}
+    if behind:
+        print(f"\n⚠️ 有板块的指数接口还没出 {cap} 之后的数据，本次统一更新到 {cap}：")
+        for b, d in sorted(behind.items(), key=lambda kv: kv[1]):
+            print(f"     {C.BOARDS[b]['name']:<8} 接口已有 {d}")
+        print("  → 这是正常的（各交易所指数发布时点不同，深市常比沪市晚）。")
+        print("    等接口补齐后（一般当晚）再跑一次即可自动补上，数据不会丢。")
+    elif m["last_date"] < cap:
+        print(f"⚠️ 面板末日 {m['last_date']} 早于数据末日 {cap}，请检查面板重建是否报错。")
 
 
 def cmd_stats(args):

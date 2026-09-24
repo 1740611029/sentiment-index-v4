@@ -33,7 +33,9 @@ C:\Users\wr\.workbuddy-ai\binaries\python\envs\default\Scripts\python.exe
 ```bash
 cd D:\情绪指标4
 python run.py serve --no-browser --port 8779   # 起服务 → http://127.0.0.1:8779
+python _explore/check_refresh.py --save         # ★ 刷新前：存基线快照
 python run.py refresh                           # ★ 抓新数据 + 重建全部面板（唯一联网，约 16 分钟）
+python _explore/check_refresh.py --check        # ★ 刷新后：证明「只追加、历史没被改写」（铁律八）
 python run.py update                            # 只重建面板缓存（不抓数据，last_date 不会前进）
 python run.py build --force                     # 强制重建全部（改模型后）
 python run.py stats                             # 命令行打印命中率
@@ -150,7 +152,21 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 （SENTI-1 底部 17/19、SWING 41/64、SWING-2 68/99、SWING-3 40/47、并集 189/70.9%）。
 **只要有一个数字变了，就说明刷新改写了历史** —— 那是 bug，不是「数据变好了」。
 
-两条独立的自查手段：
+**这条纪律已经脚本化了，别再手工做：**
+
+```bash
+python _explore/check_refresh.py --save     # 刷新前
+python run.py refresh
+python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过」（退出码 0）
+```
+
+`check_refresh.py` 按**日期取交集逐点比对** 6 板块 × 4 模型的全部历史分值、
+全部历史信号（只比入场字段 `date/score/src/reso`），并检查
+① 基线日期一个没丢 ② 历史窗口内没多出日期 ③ 历史窗口内没多出信号。
+⚠️ 命中率这类统计数字**不参与判定** —— 待验证信号到期后 `ok`/`ret` 本来就会变
+（会单独打印出来供人看一眼）。
+
+手工自查的两条备用手段：
 1. `delta − 上游缓存 = 0`（增量没引入新股票 → 广度分母不变）；
 2. 拿刷新前的某个已知读数对比（例如 2026-09-18 大盘 SWING/SWING-2/SWING-3 = 64.0/38.9/23.0）。
 
@@ -338,6 +354,14 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 - **80 只票新浪抓不到**（900xxx 沪市B股、920xxx 北交所、689009 CDR），沿用上游旧数据。
   它们在上游缓存里也没有 → 广度分母不受影响。
 - **抓数当日个股比指数早一天** → `_align_boards()` 把 6 板块日期轴截到最短，截掉的 1 天下次自动补回（幂等）。
+- ⚠️ **6 个板块的指数分属沪深两个交易所，发布时点不一致** ——
+  实测 2026-09-23 17:55：上证 / 沪深300 已有当天数据，创业板还停在昨天。
+  所以**晚上跑 refresh 经常只能更新到前一天**（不是坏了）。
+  **不能按各板块自己的末日发布**：`store.resonance()` 是按公共日期轴
+  `(S <= ENTRY_THR).sum(axis=1)` 求和，缺一个板块 → 该板块是 NaN → 比较恒为 False
+  → **共振数少算** → S/A/B 等级失真。所以宁可统一截齐。
+  `refresh` 结束时会打印是哪些板块还在等（`fetch._align_boards` 的新提示）。
+- **刷新校验**：`_explore/check_refresh.py --save/--check`（铁律八的脚本化实现）。
 - `HIST_START = 2019-01-01`（锚点预热用），展示从 `BACKTEST_START = 2023-09-20` 起。
 - 所有外部数据统一 `shift(1)`（两融次日公布、破净依赖季报净资产），无前视。
 - 长历史三个**数据问题**（别当模型问题）：
@@ -362,7 +386,7 @@ dropna 后：有效 MA20 = 3413 个，x−MA20 ≤ −0.05 的 685 天   ← 差
 
 - [ ] 改了 JS → 跑过 `_explore/smoke_page.py`
 - [ ] 改了 `senti/*.py` → 服务重启过，且 `meta.built_at` 是新的
-- [ ] 跑过 `run.py refresh` → **复核过「刷新前后统计数字完全一致」**（铁律八）；
+- [ ] 跑过 `run.py refresh` → `check_refresh.py --check` **✔ 通过**（铁律八）；
       `meta.last_date` 已前进，4 类 `panels*` 的 mtime 都是新的（不是只有 `panels/`）
 - [ ] 改了模型/参数/结论 → `DELIVERY.md` 已同步（含样本量 + 出处脚本编号）
 - [ ] 功能/交互/板块变化 → `README.md` 已同步
