@@ -17,6 +17,9 @@
 ⚠️ 2026-10-07 界面改版（大白话仪表盘）：左侧分值卡/刻度条/最近信号行已移除，
    改为「今日结论横幅 + 6 板块卡（三模型温度上卡）+ 模型 Tab」；
    信号点统一由 sigMarker() 生成（class="sigmk" / 光环 class="halo"），按 class 计数。
+⚠️ 2026-10-07 新增「谁离出提示最近」雷达卡（board-radar 变更，板块卡与走势图之间，
+   id=radar）：第 ⑥ 段校验行数 / 排序 / 分差数值 / 走向词 / 「不横向比高低」纪律 /
+   违禁词「预计」（走向列只陈述事实，不做外推）。
 """
 import sys, os, re, json, subprocess, argparse, urllib.request
 
@@ -237,7 +240,58 @@ if(/62.3/.test(bd5)){console.log('  !! 跨天后盘中值应清空为 —');bad5
 if(!/盘中（未刷新）/.test(bd5)){console.log('  !! 跨天后盘中区标题应回到未刷新态');bad5++;}
 INTRA=null;
 console.log('  '+(bad5===0?'✔ 盘中刷新冒烟通过':'✘ 盘中刷新存在 '+bad5+' 处问题'));
-process.exit((bad2+bad3+bad4+bad5)?1:0);
+
+/* ---------- ⑥ 雷达卡片（谁离出提示最近，2026-10-07 board-radar 新增） ---------- */
+console.log('\n⑥ 雷达卡片（谁离出提示最近）');
+let bad6=0;
+function radarExpect(){
+  /* 与页面同口径重算：行内最小分差排序（跌破/出提示的排最前） */
+  const defs = MODE==='swing'
+    ? [{k:'swing',thr:SW().thr},{k:'swing2',thr:SRC2().thr},{k:'swing3',thr:SRC3().thr}]
+    : [{k:'score',thr:SUM.entry_thr??0}];
+  const rows=KEYS.map(bk=>{
+    const B=DATA[bk.key];
+    const cells=defs.map(df=>{
+      const ser=B[df.k]||[], v=ser[ser.length-1], n=ser.length;
+      const hit=v!=null&&v<=df.thr;
+      return {df,v,gap:(v==null?null:v-df.thr),hit};
+    });
+    const minGap=Math.min(...cells.map(c=>c.hit?-1e9:(c.gap==null?1e9:c.gap)));
+    return {key:bk.key,cells,minGap};
+  });
+  rows.sort((a,b)=>a.minGap-b.minGap);
+  return rows;
+}
+for(const m of ['swing','senti']){
+  MODE=m; SRC='union'; render();
+  const rd=document.getElementById('radar').innerHTML||'';
+  const tag=(m==='swing')?'小机会':'大机会';
+  if(cnt(rd,/class="rrow/g)!==6){console.log('  !! '+tag+' 雷达应有 6 行，实际 '+cnt(rd,/class="rrow/g));bad6++;}
+  if(!/不横向比高低/.test(rd)){console.log('  !! '+tag+' 雷达缺「不横向比高低」纪律提示');bad6++;}
+  if(/预计/.test(rd)){console.log('  !! '+tag+' 雷达出现违禁词「预计」（只陈述事实，不外推）');bad6++;}
+  if(/undefined|NaN/.test(rd)){console.log('  !! '+tag+' 雷达含 undefined/NaN');bad6++;}
+  if(m==='swing'&&(!/跌得深/.test(rd)||!/跌势放缓/.test(rd)||!/均线止跌/.test(rd))){
+    console.log('  !! 小机会雷达缺模型列');bad6++;}
+  if(m==='senti'&&!/大机会温度/.test(rd)){console.log('  !! 大机会雷达缺「大机会温度」列');bad6++;}
+  /* 排序：页面行序 == 重算行序 */
+  const got=(rd.match(/data-k="([A-Z0-9]+)"/g)||[]).map(s=>s.slice(8,-1));
+  const exp=radarExpect().map(r=>r.key);
+  if(JSON.stringify(got)!==JSON.stringify(exp)){
+    console.log('  !! '+tag+' 雷达排序不对：页面 '+got.join(',')+' 应为 '+exp.join(','));bad6++;}
+  /* 分差：未跌破格子的「差 X.X」必须与重算值一致（跌破/出提示格显示徽章，跳过） */
+  for(const r of radarExpect()){
+    for(const c of r.cells){
+      if(c.hit||c.gap==null) continue;
+      if(!rd.includes('差 '+c.gap.toFixed(1))){
+        console.log('  !! '+tag+' '+r.key+' '+c.df.k+' 分差缺失：差 '+c.gap.toFixed(1));bad6++;}
+    }
+  }
+  /* 走向词每行恰好一个 */
+  const nTr=cnt(rd,/在降温|在回暖|横着走/g);
+  if(nTr!==6){console.log('  !! '+tag+' 走向词数 '+nTr+' != 6');bad6++;}
+}
+console.log('  '+(bad6===0?'✔ 雷达卡片冒烟通过':'✘ 雷达卡片存在 '+bad6+' 处问题'));
+process.exit((bad2+bad3+bad4+bad5+bad6)?1:0);
 """
 
 
@@ -267,6 +321,8 @@ def main():
         print("  ✘ 页面里没有 <script> 段"); return 2
     if 'id="intrabtn"' not in html:
         print("  ✘ 页面缺少「盘中刷新」按钮（id=intrabtn）"); return 1
+    if 'id="radar"' not in html:
+        print("  ✘ 页面缺少「谁离出提示最近」雷达卡片（id=radar）"); return 1
     js = scripts[-1]
     js_path = os.path.join(TMP, "page.js")
     with open(js_path, "w", encoding="utf-8") as f:

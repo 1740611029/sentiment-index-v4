@@ -93,6 +93,33 @@
       font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .bd .intr b{font-weight:650;font-size:12.5px}
 
+  /* ---------- 雷达：谁离出提示最近（只比分差，不横向比高低） ---------- */
+  .radar{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);
+      padding:10px 16px 12px;margin-bottom:11px}
+  .rdhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+      padding-bottom:7px;border-bottom:1px solid var(--bd);margin-bottom:2px}
+  .rdtitle{font-size:14px;font-weight:650;color:#F2F6FB}
+  .rdsub{color:var(--dim);font-size:11.5px}
+  .radar table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .radar th{color:var(--dim);font-weight:500;font-size:11.5px;text-align:left;
+      padding:6px 8px 4px;white-space:nowrap}
+  .radar th i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+  .radar td{padding:5px 8px;border-top:1px solid rgba(148,171,200,.05);white-space:nowrap}
+  .radar tr.rrow{cursor:pointer;transition:background .14s var(--ease)}
+  .radar tr.rrow:hover{background:rgba(148,171,200,.05)}
+  .radar tr.rrow.sel{background:rgba(99,179,255,.06)}
+  .rnm{font-weight:600;color:var(--tx)}
+  .rgap{color:var(--mut)}
+  .rgap.close{color:var(--tx);font-weight:650}
+  .rdb{display:inline-block;font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 7px}
+  .rdb.dim{background:#2A3A4A;color:#9AABBF;font-weight:600}
+  .rtr{font-size:12px}
+  @media(max-width:640px){
+    .radar{padding:9px 10px 10px}
+    .radar table{font-size:11.5px}
+    .radar th,.radar td{padding:4px 4px}
+  }
+
   /* ---------- 图区 ---------- */
   .chartcard{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);
       padding:11px 16px 6px}
@@ -192,6 +219,8 @@
     <button id="intrabtn" title="用实时快照算一遍：假设现在就收盘，各板块温度是多少（只是预览，不是提示）">盘中刷新</button>
   </div>
   <div class="boards" id="boards"></div>
+
+  <div class="radar" id="radar"></div>
 
   <div class="chartcard">
     <div class="chead">
@@ -452,6 +481,73 @@ function renderBoards(){
 $('boards').addEventListener('click',e=>{
   const c=e.target.closest('.bd'); if(!c) return;
   cur=c.dataset.k; render();
+});
+
+/* ---------- 谁离出提示最近（雷达） ----------
+   只比「各自距自己触发线的分差」，不横向比高低（DELIVERY.md §17 刻度纪律）；
+   「近 5 天走向」只陈述事实（降温/回暖/横着走），不做任何外推预测。 */
+function renderRadar(){
+  const el=$('radar');
+  const defs = MODE==='swing'
+    ? [{k:'swing', n:'跌得深',  c:'#63B3FF', thr:SW().thr},
+       {k:'swing2',n:'跌势放缓',c:'#C9A2FF', thr:SRC2().thr},
+       {k:'swing3',n:'均线止跌',c:'#FFB86B', thr:SRC3().thr}]
+    : [{k:'score', n:'大机会温度', c:'#7FB6FF', thr:SUM.entry_thr??0}];
+  const SRC2CELL={swing:'swing',macd:'swing2',maslope:'swing3'};
+  const rows=KEYS.map(bk=>{
+    const B=DATA[bk.key], d=B.dates[B.dates.length-1];
+    let evG=null, freshCells=[];
+    if(MODE==='swing'){
+      const ev=(B.union_events||[]).find(e=>e.date===d);
+      if(ev){evG=gradeOf(ev);
+        freshCells=(ev.src==='both'?['swing','swing2','swing3']:[SRC2CELL[ev.src]||'swing']);}
+    }else{
+      const ev=(B.bottom||[]).find(e=>e.date===d);
+      if(ev){evG=ev.grade||'C'; freshCells=['score'];}
+    }
+    const cells=defs.map(df=>{
+      const ser=B[df.k]||[], v=lastOf(ser), n=ser.length;
+      const hit=v!=null&&v<=df.thr;
+      const tr=(n>=6&&v!=null&&ser[n-6]!=null)?v-ser[n-6]:null;
+      return {df, v, gap:(v==null?null:v-df.thr), hit, tr, fresh:freshCells.includes(df.k)};
+    });
+    /* 排序键：行内最小分差；有格子已跌破/出提示的排最前 */
+    const minGap=Math.min(...cells.map(c=>c.hit?-1e9:(c.gap==null?1e9:c.gap)));
+    let trend;
+    if(MODE==='swing'){
+      const ts=cells.map(c=>c.tr).filter(x=>x!=null);
+      const dn=ts.filter(x=>x<0).length, up=ts.filter(x=>x>0).length;
+      trend=dn>=2?-1:(up>=2?1:0);
+    }else{
+      const t=cells[0].tr;
+      trend=(t==null)?0:(t<-2?-1:(t>2?1:0));
+    }
+    return {key:bk.key, name:B.name, cells, minGap, trend, evG};
+  }).filter(r=>r.cells.some(c=>c.v!=null));
+  if(!rows.length){el.style.display='none';return;}
+  el.style.display='';
+  rows.sort((a,b)=>a.minGap-b.minGap);
+  const cellHtml=(c,g)=>{
+    if(c.fresh&&g) return `<span class="rdb" style="background:${GCOL[g]};color:#04222B">${g} 级提示</span>`;
+    if(c.hit)      return `<span class="rdb dim">已跌破</span>`;
+    if(c.gap==null) return `<span class="rgap">—</span>`;
+    return `<span class="rgap${c.gap<=5?' close':''}">差 ${fmt(c.gap,1)}</span>`;
+  };
+  const TRD={'-1':['↓ 在降温','#6FE39C'],'1':['↑ 在回暖','#F5B544'],'0':['→ 横着走','var(--dim)']};
+  el.innerHTML=`<div class="rdhead"><span class="rdtitle">谁离出提示最近</span>
+      <span class="rdsub">各自跟自己的触发线比，不横向比高低 · 近 5 天走向只是事实，不是预测</span></div>
+    <table><thead><tr><th>板块</th>${defs.map(d=>
+      `<th><i style="background:${d.c}"></i>${d.n}</th>`).join('')}<th>近 5 天走向</th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const [tt,tc]=TRD[String(r.trend)];
+      return `<tr class="rrow${r.key===cur?' sel':''}" data-k="${r.key}">
+        <td class="rnm">${r.name}</td>
+        ${r.cells.map(c=>`<td>${cellHtml(c,r.evG)}</td>`).join('')}
+        <td class="rtr" style="color:${tc}">${tt}</td></tr>`;}).join('')}</tbody></table>`;
+}
+$('radar').addEventListener('click',e=>{
+  const tr=e.target.closest('tr.rrow'); if(!tr) return;
+  cur=tr.dataset.k; render();
 });
 
 /* ---------- chart ---------- */
@@ -848,6 +944,7 @@ function render(){
     : `${B.name} · 大机会温度<small>温度越低 = 越恐慌；跌破触发线才提示，看 20~60 天</small>`;
   renderBanner();
   renderBoards();
+  renderRadar();
   drawChart();
   renderMeta();
 }
