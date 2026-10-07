@@ -3,218 +3,146 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>A股板块恐贪情绪指数 · SENTI-1</title>
+<title>A股板块恐贪温度计</title>
 <style>
   :root{
-    /* 面：越"高"越亮；冷调石板灰，刻意避开纯黑与纯灰 */
-    --bg:#070A0F; --card:#0E131A; --card2:#131A23; --card3:#1A222D;
-    --bd:rgba(148,171,200,.10); --bd2:rgba(148,171,200,.18); --bd3:rgba(148,171,200,.28);
-    /* 字：近白但不刺眼，三级灰阶 */
-    --tx:#E7EDF6; --mut:#96A5BA; --dim:#7A8AA1;
+    /* 面：整体压暗（2026-10-07 改版），折线反向加亮，保证图上对比度 */
+    --bg:#05070B; --card:#0A0E14; --card2:#10161F; --card3:#161E29;
+    --bd:rgba(148,171,200,.09); --bd2:rgba(148,171,200,.18); --bd3:rgba(148,171,200,.28);
+    --tx:#E9EFF8; --mut:#9AABBF; --dim:#71809A;
     /* 语义色：红涨绿跌（A 股口径，勿改） */
-    --red:#FF5C5C; --grn:#3ECF8E; --blu:#5FA8FF; --yel:#F5B544; --pur:#A78BFA; --cyn:#4FD1E8;
-    --r:16px; --r2:11px; --r3:8px;
+    --red:#FF5C5C; --grn:#3ECF8E; --blu:#63B3FF; --yel:#F5B544;
+    --pur:#C9A2FF; --org:#FFB86B; --cyn:#4FD1E8;
+    --r:14px; --r2:11px; --r3:8px;
     --ease:cubic-bezier(.22,1,.36,1);
-    --sh:0 1px 0 rgba(255,255,255,.045) inset, 0 20px 46px -32px rgba(0,0,0,.95);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
-  body{
-       background:
-         radial-gradient(1100px 520px at 10% -12%, rgba(95,168,255,.10), transparent 62%),
-         radial-gradient(900px 420px at 88% -6%, rgba(62,207,142,.05), transparent 60%),
-         var(--bg);
-       background-attachment:fixed;
-       color:var(--tx);
+  body{background:var(--bg);color:var(--tx);
        font-family:"Inter","Inter var",-apple-system,"Segoe UI",Roboto,
                    "PingFang SC","Microsoft YaHei",sans-serif;
-       font-size:14px;line-height:1.6;padding:0 0 56px;
+       font-size:14px;line-height:1.55;padding:0 0 20px;
        font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
-  body::before{content:"";display:block;height:2px;
-       background:linear-gradient(90deg,#2C6BD6,#5FA8FF 24%,#4FD1E8 46%,#3ECF8E 66%,
-                                  #F5B544 84%,#FF5C5C)}
-  .wrap{max-width:1660px;margin:0 auto;padding:0 20px}
-  ::selection{background:rgba(95,168,255,.26);color:#fff}
+  .wrap{max-width:1560px;margin:0 auto;padding:0 20px}
+  ::selection{background:rgba(99,179,255,.26);color:#fff}
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-track{background:var(--bg)}
-  ::-webkit-scrollbar-thumb{background:#1E2733;border-radius:6px;border:2px solid var(--bg)}
-  ::-webkit-scrollbar-thumb:hover{background:#28323F}
+  ::-webkit-scrollbar-thumb{background:#1A2230;border-radius:6px;border:2px solid var(--bg)}
 
   /* ---------- header ---------- */
-  header{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
-         flex-wrap:wrap;border-bottom:1px solid var(--bd);
-         padding:26px 0 18px;margin-bottom:16px}
-  .title{font-size:22px;font-weight:600;letter-spacing:-.2px;line-height:1.3;color:#F2F6FB}
-  .title::before{content:"";display:inline-block;width:3px;height:20px;border-radius:2px;
-         background:linear-gradient(180deg,var(--blu),#2C6BD6);margin-right:12px;vertical-align:-3px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:18px;
+         flex-wrap:wrap;padding:14px 0 10px}
+  .title{font-size:20px;font-weight:650;letter-spacing:-.2px;color:#F2F6FB;white-space:nowrap}
   .title span{color:var(--blu)}
-  .sub{color:var(--dim);font-size:12px;margin-top:7px;text-align:right;line-height:1.85}
+  .hmeta{color:var(--dim);font-size:12px;text-align:right;line-height:1.7}
+  .hmeta b{color:var(--mut);font-weight:600}
 
-  /* ---------- mode switch ---------- */
-  .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
-         gap:12px;margin-bottom:14px}
-  .mode{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--bd);
-        border-radius:var(--r2);padding:14px 16px 14px 19px;cursor:pointer;text-align:left;
-        font-family:inherit;color:var(--mut);
-        transition:border-color .18s var(--ease),background .18s var(--ease),
-                   transform .18s var(--ease),box-shadow .18s var(--ease)}
-  .mode::before{content:"";position:absolute;left:0;top:15px;bottom:15px;width:2px;
-        border-radius:0 2px 2px 0;background:transparent;transition:background .18s var(--ease)}
-  .mode:hover{border-color:var(--bd2);background:var(--card2);transform:translateY(-1px)}
-  .mode .mn{font-size:14px;font-weight:600;color:var(--tx);
-        display:flex;align-items:center;gap:9px;letter-spacing:-.1px}
-  .mode .mn::before{content:"";width:6px;height:6px;border-radius:50%;
-        background:#39455A;flex:none;transition:.18s var(--ease)}
-  .mode .md{font-size:12px;margin-top:6px;line-height:1.65;color:var(--dim)}
-  .mode.on{border-color:rgba(95,168,255,.40);
-        background:linear-gradient(180deg,rgba(95,168,255,.10),rgba(95,168,255,.02) 72%),var(--card);
-        box-shadow:0 10px 28px -20px rgba(95,168,255,.95)}
-  .mode.on::before{background:var(--blu)}
-  .mode.on .mn{color:#DCEBFF}
-  .mode.on .md{color:var(--mut)}
-  .mode.on .mn::before{background:var(--blu);box-shadow:0 0 0 3px rgba(95,168,255,.20)}
-  .mode:focus-visible{outline:2px solid var(--blu);outline-offset:2px}
+  /* 大机会 / 小机会：分段控件 */
+  .seg{display:inline-flex;background:var(--card2);border:1px solid var(--bd);
+       border-radius:9px;padding:3px;margin-left:14px;vertical-align:2px}
+  .seg button{border:0;background:none;color:var(--mut);font:inherit;font-size:13px;
+       padding:5px 14px;border-radius:6px;cursor:pointer;white-space:nowrap;
+       transition:.16s var(--ease)}
+  .seg button small{color:var(--dim);font-size:11.5px}
+  .seg button.on{background:rgba(99,179,255,.16);color:#DCEBFF;font-weight:600;
+       box-shadow:inset 0 0 0 1px rgba(99,179,255,.38)}
+  .seg button:focus-visible{outline:2px solid var(--blu);outline-offset:2px}
 
-  /* ---------- 小波段信号源切换（仅 SWING 模式显示） ---------- */
-  .srcsel{display:none;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 14px;
-          padding:8px 10px;background:var(--card2);border:1px solid var(--bd);border-radius:10px}
-  .srcsel.on{display:flex}
-  .srcsel .sl{font-size:12px;color:var(--dim);margin-right:2px;white-space:nowrap}
-  .srcsel button{font:inherit;font-size:12px;color:var(--mut);cursor:pointer;
-                 background:var(--card3);border:1px solid var(--bd);border-radius:8px;
-                 padding:5px 11px;transition:.16s}
-  .srcsel button:hover{border-color:var(--bd2);color:var(--tx)}
-  .srcsel button.on{background:rgba(95,168,255,.14);border-color:rgba(95,168,255,.45);color:#DCEBFF}
-  .srcsel .sn{margin-left:auto;font-size:12px;color:var(--dim);white-space:nowrap}
-  /* 两个信号源名字的通俗解释（占满整行） */
-  .srcsel .sh{flex-basis:100%;font-size:12px;color:var(--dim);line-height:1.8;
-              margin-top:4px;padding-top:7px;border-top:1px solid var(--bd)}
+  /* ---------- 今日结论横幅 ---------- */
+  .banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+       background:var(--card);border:1px solid var(--bd);
+       border-left:3px solid var(--dim);border-radius:10px;
+       padding:9px 16px;font-size:14px;margin-bottom:11px}
+  .banner.hot{border-color:rgba(62,207,142,.30);border-left-color:#6FE39C}
+  .banner b{color:#6FE39C;font-weight:650}
+  .banner .gr{font-weight:650}
+  .banner .more{margin-left:auto;color:var(--dim);font-size:12px}
 
-  /* ---------- tabs ---------- */
-  .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;
-        background:rgba(14,19,26,.82);border:1px solid var(--bd);border-radius:12px;padding:4px;
-        position:sticky;top:0;z-index:20;backdrop-filter:blur(14px) saturate(140%);
-        -webkit-backdrop-filter:blur(14px) saturate(140%);
-        box-shadow:0 10px 26px -22px rgba(0,0,0,1)}
-  .tab{background:none;border:0;color:var(--mut);
-       padding:8px 16px;border-radius:var(--r3);cursor:pointer;font-size:13.5px;
-       font-family:inherit;white-space:nowrap;letter-spacing:-.05px;
-       transition:color .16s var(--ease),background .16s var(--ease),box-shadow .16s var(--ease)}
-  .tab:hover{background:var(--card3);color:var(--tx)}
-  .tab.on{background:linear-gradient(180deg,rgba(95,168,255,.22),rgba(95,168,255,.10));
-          box-shadow:inset 0 0 0 1px rgba(95,168,255,.45);color:#DCEBFF;font-weight:600}
-  .tab:focus-visible,.rng button:focus-visible{outline:2px solid var(--blu);outline-offset:2px}
+  /* ---------- 6 板块卡 ---------- */
+  .boards{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:11px}
+  .bd{background:var(--card);border:1px solid var(--bd);border-radius:12px;
+      padding:11px 13px 9px;cursor:pointer;min-width:0;
+      transition:border-color .16s var(--ease),background .16s var(--ease)}
+  .bd:hover{border-color:var(--bd2);background:var(--card2)}
+  .bd.sel{border-color:rgba(99,179,255,.5);background:#0C1219}
+  .bd.sig{border-color:rgba(111,227,156,.5)}
+  .bd .hd{display:flex;align-items:center;gap:7px;margin-bottom:7px;min-height:20px}
+  .bd .nm{font-size:13.5px;font-weight:600;white-space:nowrap}
+  .bd .gb{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 6px;
+      margin-left:auto;white-space:nowrap;color:#04222B}
+  .bd .row{display:flex;align-items:center;gap:7px;padding:2.5px 0;font-size:12px}
+  .bd .row .rn{width:52px;color:var(--dim);flex:none;white-space:nowrap}
+  .bd .row .rv{width:26px;font-weight:650;font-size:13.5px;text-align:right;flex:none}
+  .bd .row .tr{flex:1;height:5px;border-radius:99px;background:#171E29;position:relative;min-width:20px}
+  .bd .row .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+  .bd .row .tr u{position:absolute;top:-2.5px;width:2px;height:10px;background:rgba(233,239,248,.55)}
+  .bd .row .hit{font-size:10.5px;color:#6FE39C;font-weight:700;width:30px;flex:none;white-space:nowrap}
+  /* 大机会模式：单值卡片 */
+  .bd .one{display:flex;align-items:baseline;gap:8px;padding:2px 0 4px}
+  .bd .one .ov{font-size:30px;font-weight:650;letter-spacing:-1px;line-height:1.1}
+  .bd .one .os{font-size:12.5px;font-weight:600}
+  /* 盘中预览（点过「盘中刷新」才出现；只是预览，不是信号） */
+  .banrow{display:flex;gap:10px;align-items:stretch;margin-bottom:11px}
+  .banrow .banner{flex:1;margin-bottom:0;min-width:0}
+  #intrabtn{border:1px solid var(--bd);background:var(--card2);color:var(--mut);
+      font:inherit;font-size:12.5px;padding:0 16px;border-radius:10px;cursor:pointer;
+      white-space:nowrap;transition:.16s var(--ease)}
+  #intrabtn:hover{color:var(--tx);border-color:var(--bd2)}
+  #intrabtn:disabled{opacity:.55;cursor:default}
+  .bd .intr{margin-top:5px;padding-top:5px;border-top:1px dashed var(--bd);
+      font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .bd .intr b{font-weight:650;font-size:12.5px}
 
-  /* ---------- layout ---------- */
-  .hero{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;
-        margin-bottom:18px;align-items:stretch}
-  .card{background:linear-gradient(180deg,rgba(255,255,255,.028),rgba(255,255,255,0) 42%),
-                   var(--card);
-        border:1px solid var(--bd);border-radius:var(--r);padding:22px;box-shadow:var(--sh)}
-  /* 左卡内容比右卡（图表）矮：撑满同高后，让「最近信号」沉底，不留大片空白 */
-  .hero > .card:first-child{display:flex;flex-direction:column}
-  .hero > .card:first-child .barlab{margin-bottom:14px}
-  .hero > .card:first-child .lsig{margin-top:auto}
-
-  /* ---------- score panel ---------- */
-  .lab{color:var(--mut);font-size:12px;font-weight:600;letter-spacing:.06em;
-       display:flex;align-items:center;gap:8px}
-  .lab::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--blu);
-       flex:none;box-shadow:0 0 0 3px rgba(95,168,255,.16)}
-  .big{font-size:clamp(44px,3.6vw,60px);font-weight:600;line-height:1.02;
-       margin:10px 0 0 -1px;font-variant-numeric:tabular-nums;letter-spacing:-2px;
-       text-shadow:0 0 34px rgba(0,0,0,.55)}
-  .big::after{content:"分";font-size:14px;font-weight:500;color:var(--dim);
-       margin-left:7px;letter-spacing:0;vertical-align:5px;text-shadow:none}
-  /* 合并视图：卡片里并排给出三个模型的最新值（各自刻度，各自跟自己比） */
-  .big3{margin:8px 0 0;display:grid;gap:7px}
-  .big3 .row{display:flex;align-items:baseline;gap:9px}
-  .big3 .nm{font-size:12px;color:var(--mut);width:52px;flex:none}
-  .big3 .v{font-size:clamp(26px,2.1vw,34px);font-weight:600;line-height:1.05;
-       font-variant-numeric:tabular-nums;letter-spacing:-1px}
-  .big3 .th{font-size:11px;color:var(--dim);margin-left:auto;white-space:nowrap}
-  .tag{display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;
-       font-size:12px;font-weight:600;margin-top:11px;letter-spacing:.01em}
-  /* 不再用"盒中盒"：改成发丝分隔的读数行 */
-  .chg{margin-top:16px;display:grid;border-top:1px solid var(--bd)}
-  .chg div{background:none;border:0;border-bottom:1px solid var(--bd);
-           padding:10px 2px;font-size:12px;color:var(--mut);
-           display:flex;justify-content:space-between;align-items:center;gap:10px}
-  .chg div:last-child{border-bottom:0}
-  .chg b{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:var(--tx)}
-
-  .bar{position:relative;height:10px;margin-top:20px;border-radius:999px;overflow:visible;
-       background:linear-gradient(90deg,#26794F 0%,#2C6E8A 26%,#7C6A2E 62%,#A63A36 82%,#C33B33 100%);
-       box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 2px 8px -4px rgba(0,0,0,.8)}
-  .bar .mk{position:absolute;top:-6px;width:3px;height:22px;background:#fff;
-           border-radius:2px;box-shadow:0 0 0 2px var(--card),0 0 12px rgba(255,255,255,.45);
-           transition:left .35s var(--ease)}
-  .bar .tk{position:absolute;top:-4px;width:1px;height:18px;background:rgba(231,237,246,.30)}
-  .barscale{position:relative;height:18px;margin-top:9px}
-  .barscale span{position:absolute;transform:translateX(-50%);font-size:12px;
-                 color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .barscale span:first-child{transform:none}
-  .barscale span:last-child{transform:translateX(-100%)}
-  .barlab{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;
-          letter-spacing:.04em}
-
-  .lsig{margin-top:16px;padding-top:13px;border-top:1px solid var(--bd);
-        font-size:12px;color:var(--mut);line-height:1.85}
-
-  /* ---------- chart panel ---------- */
-  .chartcard{padding:18px 20px 14px;display:flex;flex-direction:column}
-  .chead{display:flex;justify-content:space-between;align-items:center;
-         margin-bottom:12px;flex-wrap:wrap;gap:10px;
-         padding-bottom:12px;border-bottom:1px solid var(--bd)}
-  .ctitle{font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px;
-          letter-spacing:-.1px;color:#F2F6FB}
-  .ctitle::before{content:"";width:3px;height:15px;border-radius:2px;
-          background:linear-gradient(180deg,var(--blu),#2C6BD6)}
-  .rng{display:flex;flex-wrap:wrap;gap:2px;background:var(--card2);
-       border:1px solid var(--bd);border-radius:9px;padding:3px}
-  .rng button{background:none;border:0;color:var(--dim);font-size:12px;font-weight:500;
-       padding:5px 11px;border-radius:6px;cursor:pointer;font-family:inherit;
-       transition:color .16s var(--ease),background .16s var(--ease),box-shadow .16s var(--ease)}
-  .rng button:hover{color:var(--tx);background:var(--card3)}
-  .rng button.on{background:rgba(95,168,255,.18);color:#CBDEFF;font-weight:600;
-       box-shadow:inset 0 0 0 1px rgba(95,168,255,.40)}
-
-  .opts{display:flex;gap:10px;align-items:center;color:var(--mut);font-size:12px;
-        margin-bottom:8px;flex-wrap:wrap}
-  .opts label{cursor:pointer;display:inline-flex;align-items:center;gap:7px;
-        padding:5px 11px;background:var(--card2);border:1px solid var(--bd);
-        border-radius:var(--r3);user-select:none;
-        transition:border-color .16s var(--ease),color .16s var(--ease),background .16s var(--ease)}
-  .opts label:hover{border-color:var(--bd2);color:var(--tx);background:var(--card3)}
-  .opts input{accent-color:var(--blu);width:13px;height:13px;margin:0}
-  #rnginfo{color:var(--dim)}
-  /* 实测命中率是关键读数：给它一个 chip，与旁边的辅助文字拉开层级 */
-  #modestat{color:var(--mut);padding:5px 12px;background:var(--card2);
-    border:1px solid var(--bd);border-radius:var(--r3);line-height:1.5}
+  /* ---------- 图区 ---------- */
+  .chartcard{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);
+      padding:11px 16px 6px}
+  .chead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+      padding-bottom:8px;border-bottom:1px solid var(--bd);margin-bottom:6px}
+  .ctitle{font-size:15px;font-weight:650;letter-spacing:-.1px;color:#F2F6FB}
+  .ctitle small{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px}
+  .mtabs{display:flex;gap:4px;background:var(--card2);border:1px solid var(--bd);
+      border-radius:9px;padding:3px}
+  .mtabs button{border:0;background:none;color:var(--mut);font:inherit;font-size:12.5px;
+      padding:5px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;
+      transition:.16s var(--ease)}
+  .mtabs button i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+  .mtabs button.on{background:rgba(99,179,255,.16);color:#DCEBFF;font-weight:600;
+      box-shadow:inset 0 0 0 1px rgba(99,179,255,.38)}
+  .rng{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
+  .rng button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;
+      padding:4px 9px;border-radius:6px;cursor:pointer;transition:.16s var(--ease)}
+  .rng button:hover{color:var(--tx)}
+  .rng button.on{background:var(--card3);color:var(--tx);font-weight:600}
   #plot{width:100%;border-radius:10px;margin-top:2px}
 
-  .legend{display:flex;gap:7px 8px;flex-wrap:wrap;color:var(--mut);font-size:12px;
-          padding:12px 0 2px}
-  .legend > span{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;
-          background:rgba(148,171,200,.05);border:1px solid var(--bd);
-          border-radius:999px;line-height:1.6}
-  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;flex:none}
+  .cfoot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--mut);
+      font-size:12px;padding:8px 0 4px}
+  .cfoot > span,.cfoot > label{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;
+      background:rgba(148,171,200,.05);border:1px solid var(--bd);border-radius:999px;
+      line-height:1.6;cursor:default}
+  .cfoot > label{cursor:pointer;user-select:none}
+  .cfoot i{display:inline-block;width:12px;height:3px;border-radius:2px;flex:none}
+  .cfoot input{accent-color:var(--blu);width:12px;height:12px;margin:0}
+  #modestat{color:var(--mut)}
+  #modestat b{color:var(--tx)}
+  #rnginfo{color:var(--dim)}
 
-  /* ---------- 合并视图：三个模型各自一张图 ---------- */
+  /* 合并视图：三个模型各自一张图（禁止改回三条线叠一张图，见 DELIVERY.md §17） */
   .subchart{border:1px solid var(--bd);border-radius:var(--r2);
             background:rgba(148,171,200,.022);padding:10px 12px 4px;margin-bottom:12px}
   .subchart:last-child{margin-bottom:0}
   .schead{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
           font-size:12px;color:var(--mut);padding:0 2px 6px}
-  .schead b{font-size:13px;font-weight:500}
+  .schead b{font-size:13px;font-weight:600}
   .sdot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
   .shint{color:var(--dim)}
   .sval{margin-left:auto;color:var(--mut);white-space:nowrap}
   .sval b{font-size:13px}
 
-  .gnote{margin-top:14px;background:var(--card2);border:1px solid var(--bd);
+  /* 大白话说明（折叠） */
+  .gnote{margin-top:10px;background:var(--card2);border:1px solid var(--bd);
          border-radius:var(--r2);overflow:hidden}
-  .gnote summary{cursor:pointer;padding:11px 14px;font-size:12.5px;color:var(--tx);
+  .gnote summary{cursor:pointer;padding:9px 14px;font-size:12.5px;color:var(--tx);
          font-weight:600;list-style:none;display:flex;align-items:center;gap:9px;user-select:none;
          transition:background .16s var(--ease)}
   .gnote summary:hover{background:var(--card3)}
@@ -224,38 +152,24 @@
   .gnote summary::after{content:"▾";margin-left:auto;color:var(--dim);font-size:12px;
          transition:transform .2s var(--ease)}
   .gnote[open] summary::after{transform:rotate(180deg)}
-  .gbody{padding:12px 14px 14px;font-size:12px;color:var(--mut);line-height:1.9;
+  .gbody{padding:11px 14px 13px;font-size:12.5px;color:var(--mut);line-height:1.9;
          border-top:1px solid var(--bd)}
   .gbody b.k{color:var(--tx);font-weight:600}
 
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;
-     padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
-  td{padding:8px 10px;border-bottom:1px solid var(--bd);font-variant-numeric:tabular-nums}
-  tr:last-child td{border-bottom:none}
-  .ok{color:var(--grn)} .no{color:var(--red)} .yel{color:var(--yel)}
-  .up{color:var(--red)} .dn{color:var(--grn)}
-  .empty{color:var(--dim);font-size:13px;padding:16px 10px}
+  .footstrip{display:flex;justify-content:space-between;gap:14px;color:var(--dim);
+      font-size:12px;padding:11px 2px 0;flex-wrap:wrap}
+  .footstrip b{color:var(--mut);font-weight:600}
 
-  .foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--bd);
-        color:var(--dim);font-size:12px;display:flex;justify-content:space-between;
-        gap:16px;flex-wrap:wrap}
-
-  #tip{position:fixed;pointer-events:none;background:rgba(10,14,20,.96);border:1px solid var(--bd2);
+  #tip{position:fixed;pointer-events:none;background:rgba(8,12,18,.97);border:1px solid var(--bd2);
        border-radius:12px;padding:11px 14px;font-size:12px;display:none;z-index:99;
-       box-shadow:0 18px 44px -18px rgba(0,0,0,.95);white-space:nowrap;line-height:1.8;
+       box-shadow:0 16px 40px -16px rgba(0,0,0,.9);white-space:nowrap;line-height:1.85;
        backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 
-  @media(max-width:1080px){
-    .hero{grid-template-columns:1fr}
-    .sub{text-align:left}
-  }
+  @media(max-width:1200px){ .boards{grid-template-columns:repeat(3,1fr)} }
   @media(max-width:640px){
     .wrap{padding:0 12px}
-    .tabs{position:static}
-    .big{font-size:46px}
-    .card{padding:18px}
-    .chartcard{padding:16px 14px 12px}
+    .boards{grid-template-columns:repeat(2,1fr)}
+    .hmeta{text-align:left}
   }
   @media(prefers-reduced-motion:reduce){
     *{transition-duration:.01ms !important;animation-duration:.01ms !important}
@@ -265,56 +179,40 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="title">A股板块<span>恐贪情绪指数</span> · SENTI-1</div>
-    <div class="sub">单一模型 · 近3年（{{ meta.start }} ~ {{ meta.last_date }}） ·
-      数据生成 {{ meta.built_at }} · 判定窗口 T+{{ hold }}
-      <span style="opacity:.75">　|　说明见 README.md / DELIVERY.md</span></div>
+    <div>
+      <span class="title">A股板块<span>恐贪温度计</span></span>
+      <span class="seg" id="modeseg"></span>
+    </div>
+    <div class="hmeta">数据更新至 <b>{{ meta.last_date }}</b>（每天收盘后更新 · 生成于 {{ meta.built_at }}）<br>
+      这个页面回答一个问题：<b>现在哪里跌过头了？</b></div>
   </header>
 
-  <div class="modes" id="modes"></div>
+  <div class="banrow">
+    <div class="banner" id="banner"></div>
+    <button id="intrabtn" title="用实时快照算一遍：假设现在就收盘，各板块温度是多少（只是预览，不是提示）">盘中刷新</button>
+  </div>
+  <div class="boards" id="boards"></div>
 
-  <div class="tabs" id="tabs"></div>
-
-  <div class="hero">
-    <div class="card">
-      <div class="lab" id="bname">板块</div>
-      <div class="big" id="sval">--</div>
-      <div id="stag"></div>
-      <div class="chg" id="schg"></div>
-      <div class="bar">
-        <div class="mk" id="mk" style="left:50%"></div>
-        <i class="tk" style="left:18.75%"></i><i class="tk" style="left:81.25%"></i>
-      </div>
-      <div class="barscale" id="barscale">
-        <span style="left:0%">-30</span><span style="left:18.75%">0</span>
-        <span style="left:81.25%">100</span><span style="left:100%">140</span>
-      </div>
-      <div class="barlab" id="barlab"><span>恐慌</span><span>贪婪</span></div>
-      <div class="lsig" id="lsig"></div>
+  <div class="chartcard">
+    <div class="chead">
+      <div class="ctitle" id="ctitle">温度走势</div>
+      <div class="mtabs" id="mtabs"></div>
+      <div class="rng" id="rng"></div>
     </div>
-    <div class="card chartcard">
-      <div class="chead">
-        <div class="ctitle">情绪分值走势</div>
-        <div class="rng" id="rng"></div>
-      </div>
-      <div class="opts">
-        <label><input type="checkbox" id="ovl" checked> 叠加指数收盘</label>
-        <span id="rnginfo"></span>
-        <span id="modestat"></span>
-      </div>
-      <div id="plot"></div>
-      <div class="legend" id="legend"></div>
-      <details class="gnote">
-        <summary id="gsum">等级说明：A / B / C 怎么用</summary>
-        <div class="gbody" id="gbody"></div>
-      </details>
+    <div id="plot"></div>
+    <div class="cfoot">
+      <label><input type="checkbox" id="ovl" checked> 叠加指数走势（灰线）</label>
+      <span id="rnginfo"></span>
+      <span id="modestat"></span>
     </div>
+    <div class="cfoot" id="legend" style="padding-top:0"></div>
+    <details class="gnote">
+      <summary id="gsum">看不懂？点这里，大白话解释这个页面</summary>
+      <div class="gbody" id="gbody"></div>
+    </details>
   </div>
 
-  <div class="foot">
-    <span>本页仅用于研究复盘，不构成投资建议</span>
-    <span>模型 SENTI-1　·　详细说明见 README.md / DELIVERY.md</span>
-  </div>
+  <div class="footstrip" id="footstrip"></div>
 </div>
 <div id="tip"></div>
 
@@ -323,178 +221,243 @@ const DATA = {{ payload|tojson }};
 const SUM  = {{ summary|tojson }};
 const KEYS = {{ boards|tojson }};
 const HOLD = {{ hold }};
+const META = {start:'{{ meta.start }}', last_date:'{{ meta.last_date }}', built_at:'{{ meta.built_at }}'};
 let cur = KEYS[0].key;
 
-/* ---------- 模式：大波段 SENTI-1 / 小波段 SWING ---------- */
-let MODE = 'senti';
+/* ---------- 模式与视图 ----------
+   MODE: senti=大机会（SENTI-1 大波段） / swing=小机会（三个小波段模型）
+   SRC : union=三个一起看（默认，不丢信号） / swing=跌得深 / swing2=跌势放缓 / swing3=均线止跌 */
+let MODE = 'swing';
+let SRC  = 'union';
 const MODES = [
-  {k:'senti', n:'大波段 · SENTI-1',
-   d:'抓「投降底」：恐慌放量、估值投降。信号少而重，判定看 T+20 / T+60。'},
-  {k:'swing', n:'小波段 · 三模型',
-   d:'抓 4～10 天波段低点。三个正交模型：回调底 / 动量拐点 / 均线拐点，'
-    +'判定看 T+7。　合并后 189 次信号（去重后 136 件事）、命中 70.9%（基线 48.6%）。'}
+  {k:'swing', n:'小机会', s:'一年几十次 · 抓回调'},
+  {k:'senti', n:'大机会', s:'一年几次 · 抓大底'},
 ];
-const modesEl = document.getElementById('modes');
-MODES.forEach(m=>{
-  const b=document.createElement('button');
-  b.className='mode'+(m.k===MODE?' on':''); b.dataset.k=m.k; b.type='button';
-  b.innerHTML=`<div class="mn">${m.n}</div><div class="md">${m.d}</div>`;
-  b.onclick=()=>{MODE=m.k;
-    modesEl.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x.dataset.k===MODE));
-    syncSrc();render();};
-  modesEl.appendChild(b);
-});
-
-/* ---------- 小波段信号源：回调底 / 动量拐点 / 均线拐点 / 合并 ----------
-   合并是默认视图：三个模型信号几乎不重叠
-   （J(回调底,动量拐点)=0.15、J(均线拐点,回调底)=0.03、J(均线拐点,动量拐点)=0.00），
-   合并后信号数 143 → 189（+32%），命中率 66.4% → 70.9%。
-   ⚠️ 事件级（同板块 ±4 自然日只算第一枪，见 store.EVENT_GAP）：
-   189 次信号实际只对应 136 件事，事件级命中 67.6%（下界 59.4%）。
-   页面同时显示「信号 N 次」与「事件 M 件」，前者是画了多少个点，
-   后者才是独立的入场机会数。 */
-let SRC = 'union';
-const SRCS = [
-  {k:'union',  n:'合并（默认）',  d:'三个模型都算，同日去重，各画一张图。信号最多。'},
-  {k:'swing',  n:'回调底 SWING',  d:'价格位置 + 热度同时到极端分位。'},
-  {k:'swing2', n:'动量拐点 SWING-2', d:'MACD 柱跌到自身极低分位。'},
-  {k:'swing3', n:'均线拐点 SWING-3', d:'MA20 斜率跌到极低分位，且当日斜率回升。'},
+const MTABS = [
+  {k:'union',  n:'三个一起看', c:'#F5B544', hint:'三个模型各一张图，刻度不同，各自跟自己比'},
+  {k:'swing',  n:'跌得深',    c:'#63B3FF', hint:'看「跌到哪了」：价格离近期高点和各条均线有多远'},
+  {k:'swing2', n:'跌势放缓',  c:'#C9A2FF', hint:'看「跌得还有多快」：下跌的劲正在衰竭，哪怕价格还在跌'},
+  {k:'swing3', n:'均线止跌',  c:'#FFB86B', hint:'看「均线还跌得多急」：跌到极急、且当天已经开始放缓'},
 ];
-const srcEl=document.createElement('div');
-srcEl.className='srcsel'; srcEl.id='srcsel';
-if(modesEl.parentNode) modesEl.parentNode.insertBefore(srcEl, modesEl.nextSibling);
-const SRC2 = () => SUM.swing2 || {thr:12, hold:7, cool:4, tol:3};
-const SRC3 = () => SUM.swing3 || {thr:10, hold:7, cool:4, tol:3};
-SRCS.forEach(s=>{
-  const b=document.createElement('button');
-  b.type='button'; b.dataset.k=s.k; b.textContent=s.n; b.title=s.d;
-  b.onclick=()=>{SRC=s.k;syncSrc();render();};
-  srcEl.appendChild(b);
-});
-const srcNote=document.createElement('span'); srcNote.className='sn'; srcEl.appendChild(srcNote);
-/* 两个信号源名字的通俗解释：用户反馈「看不懂」，必须写清楚各自在看什么 */
-const srcHint=document.createElement('div'); srcHint.className='sh';
-srcHint.innerHTML=
-  '<b style="color:#5FA8FF">回调底</b>＝看「跌到哪了」：价格离近期高点和各条均线都很远，'
- +'位置跌到自身历史的极端低位 —— 跌得够深、够偏才算数。'
- +'　<b style="color:#C9A2FF">动量拐点</b>＝看「跌得还有多快」：'
- +'MACD 柱（下跌动能）跌到自身历史极低分位，说明跌势正在衰竭，哪怕价格还在创新低。'
- +'　<b style="color:#FFB86B">均线拐点</b>＝看「均线还跌得多急」：'
- +'MA20 的 5 日斜率跌到历史极低分位，<b>且当天斜率已经回升</b>'
- +'（跌势开始趋缓）—— 这是「跌速的拐点」，不是价格的拐点。'
- +'　三者几乎不重叠（均线拐点与动量拐点完全不重合），所以合并起来看信号最多。'
- +'<br><b style="color:#F5B544">合并视图是三张图，不是三条线叠一张图</b>：'
- +'三者的分值刻度中心不同（近 750 日分值中位数 58~70 / 44~51 / 34~49），'
- +'叠在一起会让人误以为「均线拐点特别超卖」。'
- +'所以每个模型一张图，各自跟自己比 —— 只看它离<b>自己的阈值线</b>有多远。';
-srcEl.appendChild(srcHint);
-function syncSrc(){
-  const on = (MODE==='swing');
-  srcEl.classList.toggle('on', on);
-  srcEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===SRC));
-  if(!on){ srcNote.textContent=''; return; }
-  const u=(SUM.union&&SUM.union.total)||{};
-  const s2=(SUM.swing2&&SUM.swing2.total)||{};
-  const s3=(SUM.swing3&&SUM.swing3.total)||{};
-  const sw=(SUM.swing&&SUM.swing.total)||{};
-  const pick = SRC==='union'?u:(SRC==='swing2'?s2:(SRC==='swing3'?s3:sw));
-  /* 事件级：同板块 ±4 自然日只算第一枪（同一波下跌不重复计数） */
-  const ev = SUM.event||{};
-  const ek = SRC==='union'?'union':(SRC==='swing2'?'swing2':(SRC==='swing3'?'swing3':'swing'));
-  const e2 = ev[ek]||{};
-  srcNote.textContent = `信号 ${pick.n??'—'} 次（事件 ${e2.n??'—'} 件）`
-    +` · 信号命中 ${pick.rate??'—'}% · 事件命中 ${e2.rate??'—'}%（下界 ${e2.wilson??'—'}%）`
-    +` · 基线 ${pick.base??'—'}%`;
-}
-
-/* 当前模式下取哪条曲线 / 哪些信号 / 阈值 / 持有期 */
-const SW = () => SUM.swing || {thr:22, hold:7, cool:4, tol:3};
-/* ⚠️ 三个模型的分值**刻度不同**，不能叠在一张图上比（2026-09-23 改）：
-   近 750 日分值中位数 SWING 58~70 / SWING-2 44~51 / SWING-3 34~49；
-   「分值 50」在 SWING-3 里实际落在自身分布的 83 分位（MA20 斜率分布严重右偏）。
-   所以「合并」视图改成 drawUnion()：三个模型各画一张图，各自带自己的阈值。
-   下面这些取数函数只服务**单模型视图**（回调底 / 动量拐点 / 均线拐点）；
-   合并视图的取数在 drawUnion() 内部按 SUB3 各自完成。 */
-const SR   = B => MODE!=='swing' ? B.score
-                : (SRC==='swing2' ? (B.swing2||[])
-                 : SRC==='swing3' ? (B.swing3||[])
-                 : (B.swing||[]));
-const EVS  = B => MODE!=='swing' ? B.bottom
-                : SRC==='union'  ? (B.union_events||[])
-                : SRC==='swing2' ? (B.swing2_events||[])
-                : SRC==='swing3' ? (B.swing3_events||[])
-                : (B.swing_events||[]);
-const THR  = () => MODE!=='swing' ? (SUM.entry_thr ?? 0)
-                : (SRC==='swing2' ? SRC2().thr : (SRC==='swing3' ? SRC3().thr : SW().thr));
-const HOLD2= () => MODE==='swing' ? SW().hold : HOLD;
-
-/* ---------- tabs ---------- */
-const tabsEl = document.getElementById('tabs');
-KEYS.forEach(b=>{
-  const d=document.createElement('div');
-  d.className='tab'+(b.key===cur?' on':''); d.dataset.k=b.key;
-  d.textContent=b.name; d.onclick=()=>{cur=b.key;
-    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.k===cur));
-    render();};
-  tabsEl.appendChild(d);
-});
+const SW  = () => SUM.swing  || {thr:22, hold:7, cool:4, tol:3};
+const SRC2= () => SUM.swing2 || {thr:12, hold:7, cool:4, tol:3};
+const SRC3= () => SUM.swing3 || {thr:10, hold:7, cool:4, tol:3};
 
 /* ---------- helpers ---------- */
-const fmt=(n,d=2)=>(n===null||isNaN(n))?'--':Number(n).toFixed(d);
+const fmt=(n,d=2)=>(n===null||n===undefined||isNaN(n))?'--':Number(n).toFixed(d);
+const lastOf=a=>(a&&a.length)?a[a.length-1]:null;
+const $=id=>document.getElementById(id);
+
+/* 状态词：大白话 */
 function state(v){
   if(MODE==='swing'){
     const t=THR();
-    if(v<=t)     return ['超卖 · 已达小波段入场阈值','#6FE39C'];
-    if(v<30)     return ['偏冷','#5FCE96'];
-    if(v<45)     return ['偏冷','#7FB6FF'];
-    if(v<60)     return ['中性','#96A5BA'];
-    if(v<75)     return ['偏热','#F5B544'];
-    return ['过热 · 短期涨得快','#FF5C5C'];
+    if(v<=t)  return ['跌到位了 · 已出提示','#6FE39C'];
+    if(v<30)  return ['很冷','#5FCE96'];
+    if(v<45)  return ['偏凉','#7FB6FF'];
+    if(v<60)  return ['正常','#96A5BA'];
+    if(v<75)  return ['偏热','#F5B544'];
+    return ['很热 · 短期涨得快','#FF5C5C'];
   }
-  if(v<=(SUM.entry_thr??0)) return ['极度恐慌 · 已达入场阈值','#6FE39C'];
+  if(v<=(SUM.entry_thr??0)) return ['跌到位了 · 已出提示','#6FE39C'];
   if(v<0)   return ['极度恐慌 · 底部区','#3ECF8E'];
   if(v<20)  return ['恐慌','#5FCE96'];
-  if(v<40)  return ['偏冷','#7FB6FF'];
-  if(v<60)  return ['中性','#96A5BA'];
+  if(v<40)  return ['偏凉','#7FB6FF'];
+  if(v<60)  return ['正常','#96A5BA'];
   if(v<80)  return ['偏热','#F5B544'];
   if(v<=100)return ['贪婪','#FF9A6B'];
   return ['极度贪婪 · 顶部区','#FF5C5C'];
 }
 
-/* 置信等级配色与释义（全页统一口径） */
+/* 等级配色与大白话释义（全页统一口径） */
 const GCOL={S:'#4FD1E8',A:'#6FE39C',B:'#F5B544',C:'#96A5BA'};
-const GWHY={bottom:{A:'估值投降 + 全场共振',B:'只满足其中一个确认层',C:'两个确认层都不满足'}};
-/* SWING 只有"共振强弱"这一个确认层：当天还有几个别的板块也超卖 */
-const GWHY2={S:'全场共振 ≥5 个板块（实测 87%）',A:'共振 4 个板块（实测 79%）',
-             B:'共振 2~3 个板块',C:'仅本板块超卖'};
+const GWHY={bottom:{A:'估值投降 + 多板块一起恐慌，证据最足',B:'两个确认只成立一个',C:'两个确认都没成立'}};
+const GWHY2={S:'6 个板块里 5 个以上一起提示，最可信的一档',A:'当天 4 个板块一起提示',
+             B:'当天 2~3 个板块一起提示',C:'只有这个板块提示'};
 function gradeOf(e){
   if(MODE==='swing'){
-    /* 合并视图用「并集口径共振」：同一天有多少个板块出现了任一模型的信号 */
     const r = SRC==='union' ? (e.ures||e.reso||1) : (e.reso||1);
     return r>=5?'S':(r>=4?'A':(r>=2?'B':'C')); }
   return e.grade||'C';
 }
 const whyOf=(e,g)=> MODE==='swing' ? (GWHY2[g]||'') : ((GWHY[e.kind]||{})[g]||'');
 
-/* ---------- chart ---------- */
-let cvW=900;
-function measure(){ cvW = document.getElementById('plot').clientWidth || 900; }
+/* 当前视图取哪条曲线 / 哪些信号 / 阈值 / 持有期 */
+const THR = () => MODE!=='swing' ? (SUM.entry_thr ?? 0)
+               : (SRC==='swing2' ? SRC2().thr : (SRC==='swing3' ? SRC3().thr : SW().thr));
+const HOLD2= () => MODE==='swing' ? SW().hold : HOLD;
 
-/* ---------- 时间范围（以数据最后一天为基准，按自然日回溯） ---------- */
+/* ---------- header：模式分段控件 ---------- */
+const segEl=$('modeseg');
+segEl.innerHTML=MODES.map(m=>
+  `<button data-k="${m.k}" class="${m.k===MODE?'on':''}">${m.n} <small>${m.s}</small></button>`).join('');
+segEl.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  MODE=b.dataset.k;
+  segEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===MODE));
+  render();
+});
+
+/* ---------- 模型 Tab（小机会模式才显示） ---------- */
+const mtabsEl=$('mtabs');
+mtabsEl.innerHTML=MTABS.map(t=>
+  `<button data-k="${t.k}" class="${t.k===SRC?'on':''}"><i style="background:${t.c}"></i>${t.n}</button>`).join('');
+mtabsEl.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  SRC=b.dataset.k;
+  mtabsEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===SRC));
+  render();
+});
+
+/* ---------- 时间范围 ---------- */
 const RANGES=[['7d','近7天',7],['1m','近1个月',30],['3m','近3个月',91],
               ['6m','近半年',182],['1y','近1年',365],['all','全部',null]];
 let RNG='all';
-const rngEl=document.getElementById('rng');
-RANGES.forEach(([k,lab,d])=>{
-  const b=document.createElement('button');
-  b.textContent=lab; b.dataset.k=k; b.className=(k===RNG?'on':'');
-  b.onclick=()=>{RNG=k;
-    rngEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===RNG));
-    drawChart();};
-  rngEl.appendChild(b);
+const rngEl=$('rng');
+rngEl.innerHTML=RANGES.map(([k,lab])=>
+  `<button data-k="${k}" class="${k===RNG?'on':''}">${lab}</button>`).join('');
+rngEl.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  RNG=b.dataset.k;
+  rngEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===RNG));
+  drawChart();
 });
 
-/* 窗口的绝对索引 [i0,i1] */
+/* ---------- 今日结论横幅 ---------- */
+function renderBanner(){
+  const el=$('banner');
+  const cold=[], fresh=[];
+  KEYS.forEach(bk=>{
+    const B=DATA[bk.key], d=B.dates[B.dates.length-1];
+    let hit=false;
+    if(MODE==='swing'){
+      hit = (lastOf(B.swing)??99)<=SW().thr || (lastOf(B.swing2)??99)<=SRC2().thr
+         || (lastOf(B.swing3)??99)<=SRC3().thr;
+      const ev=(B.union_events||[]).find(e=>e.date===d);
+      if(hit) cold.push(B.name);
+      if(ev) fresh.push({name:B.name, g:gradeOf(ev), why:whyOf(ev,gradeOf(ev))});
+    }else{
+      hit = (lastOf(B.score)??99)<=(SUM.entry_thr??0);
+      const ev=(B.bottom||[]).find(e=>e.date===d);
+      if(hit) cold.push(B.name);
+      if(ev){const g=ev.grade||'C'; fresh.push({name:B.name, g, why:whyOf(ev,g)});}
+    }
+  });
+  const ORDER={S:0,A:1,B:2,C:3};
+  fresh.sort((a,b)=>ORDER[a.g]-ORDER[b.g]);
+  let html;
+  if(!cold.length){
+    html=`<span>今天扫描结果：6 个板块温度都在触发线以上，<b style="color:var(--mut)">没有「跌到位」的板块</b>，正常波动。</span>`;
+  }else{
+    html=`<span>今天扫描结果：<b>${cold.length} 个板块温度跌破触发线</b>（${cold.join('、')}）`;
+    if(fresh.length){
+      const f=fresh[0];
+      html+=` ｜ 其中 ${f.name} 今天刚出 <span class="gr" style="color:${GCOL[f.g]}">${f.g} 级提示</span>——${f.why}`;
+    }
+    html+=`</span>`;
+  }
+  html+=`<span class="more">「跌到位」＝ 温度跌破触发线，历史上这种时候之后 ${MODE==='swing'?'7 天':'20~60 天'}上涨居多</span>`;
+  el.innerHTML=html;
+  el.classList.toggle('hot', cold.length>0);
+}
+
+/* ---------- 盘中预览（手动刷新；只是预览，不产生提示、不进统计） ----------
+   INTRA = {ts, day, live, clickedDay, showUntil, boards:{...}}。
+   showUntil：交易时段点击 = 当天 15:05（此前渲染都显示数值）；
+             收盘后/节假日点击 = 0（一直显示「—」）。跨天自然过期。 */
+let INTRA=null;
+const todayStr=()=>{const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')
+                    +'-'+String(t.getDate()).padStart(2,'0');};
+const intraBtn=$('intrabtn');
+function intraCool(sec){          /* 冷却倒计时：按钮禁用并显示剩余秒数（与后端 60s 缓存同步） */
+  let left=sec;
+  const tick=()=>{
+    if(left<=0){intraBtn.disabled=false;intraBtn.textContent='盘中刷新';return;}
+    intraBtn.textContent='已刷新（'+left+'s 后可再刷）'; left--;
+    setTimeout(tick,1000);
+  };
+  tick();
+}
+intraBtn.addEventListener('click',()=>{
+  if(intraBtn.disabled) return;
+  const fail=()=>{intraBtn.disabled=false;intraBtn.textContent='刷新失败，稍后再试';
+                  setTimeout(()=>{intraBtn.disabled=false;intraBtn.textContent='盘中刷新';},3000);};
+  intraBtn.disabled=true; intraBtn.textContent='快照计算中（约15秒）…';
+  fetch('/api/intraday').then(r=>r.json()).then(j=>{
+    if(j&&j.error){fail();return;}
+    j.clickedDay=todayStr();
+    if(j.live){const end=new Date();end.setHours(15,5,0,0);j.showUntil=end.getTime();}
+    else j.showUntil=0;
+    INTRA=j;
+    renderBoards();
+    intraCool(60);              /* 后端 60 秒缓存期内禁止再点，并让用户看见为什么 */
+  }).catch(fail);
+});
+
+/* ---------- 6 板块卡 ---------- */
+function renderBoards(){
+  const el=$('boards');
+  el.innerHTML=KEYS.map(bk=>{
+    const B=DATA[bk.key], d=B.dates[B.dates.length-1];
+    let rows='', badge='', sig=false;
+    if(MODE==='swing'){
+      const ev=(B.union_events||[]).find(e=>e.date===d);
+      const defs=[['跌得深',B.swing,SW().thr,'#63B3FF'],
+                  ['跌势放缓',B.swing2,SRC2().thr,'#C9A2FF'],
+                  ['均线止跌',B.swing3,SRC3().thr,'#FFB86B']];
+      const anyHit=defs.some(df=>{const v=lastOf(df[1]);return v!=null&&v<=df[2];});
+      if(ev){const g=gradeOf(ev); sig=true;
+        badge=`<span class="gb" style="background:${GCOL[g]}">${g} 级提示中</span>`;}
+      else if(anyHit) badge=`<span class="gb" style="background:#2A3A4A;color:#9AABBF">已跌破</span>`;
+      rows=defs.map(df=>{
+        const v=lastOf(df[1]), hit=v!=null&&v<=df[2];
+        const pct=v==null?0:Math.max(0,Math.min(100,v));
+        return `<div class="row">
+          <span class="rn">${df[0]}</span>
+          <span class="rv" style="color:${df[3]}">${fmt(v,1)}</span>
+          <span class="tr"><i style="width:${pct}%;background:${df[3]};opacity:.8"></i><u style="left:${Math.min(100,df[2])}%"></u></span>
+          <span class="hit">${hit?'● 已达':''}</span>
+        </div>`;}).join('');
+    }else{
+      const v=lastOf(B.score), T0=SUM.entry_thr??0;
+      const [txt,col]=state(v);
+      const ev=(B.bottom||[]).find(e=>e.date===d);
+      const hit=v!=null&&v<=T0;
+      if(ev){const g=ev.grade||'C'; sig=true;
+        badge=`<span class="gb" style="background:${GCOL[g]}">${g} 级提示中</span>`;}
+      else if(hit) badge=`<span class="gb" style="background:#2A3A4A;color:#9AABBF">已跌破</span>`;
+      const pct=v==null?0:Math.max(0,Math.min(100,(v+30)/160*100));
+      const tpct=Math.max(0,Math.min(100,(T0+30)/160*100));
+      rows=`<div class="one"><span class="ov" style="color:${col}">${fmt(v,1)}</span>
+              <span class="os" style="color:${col}">${txt}</span></div>
+            <div class="row"><span class="rn">大机会</span>
+              <span class="tr" style="flex:1"><i style="width:${pct}%;background:${col};opacity:.85"></i><u style="left:${tpct}%"></u></span>
+              <span class="hit">${hit?'● 已达':''}</span></div>`;
+    }
+    /* 盘中预览区：常显。数值只在 showUntil 之前显示（= 交易时段点击后~当天15:05）；
+       收盘后/节假日点击、跨天、未刷新 → 显示「—」 */
+    const iv=(INTRA&&INTRA.boards&&INTRA.showUntil&&Date.now()<INTRA.showUntil)
+      ?INTRA.boards[bk.key]:null;
+    const v=iv||{};
+    const pv=(x,c)=>x==null?'<b style="color:var(--dim)">—</b>':`<b style="color:${c}">${fmt(x,1)}</b>`;
+    const ilab=iv?('盘中 '+INTRA.ts)
+      :(INTRA&&INTRA.clickedDay===todayStr()?'盘中（已收盘）':'盘中（未刷新）');
+    rows+= MODE==='swing'
+      ? `<div class="intr"><span>${ilab}</span>${pv(v.swing,'#63B3FF')}<span>/</span>${pv(v.swing2,'#C9A2FF')}<span>/</span>${pv(v.swing3,'#FFB86B')}</div>`
+      : `<div class="intr"><span>${ilab}</span>${pv(v.senti,'#7FB6FF')}</div>`;
+    return `<div class="bd${bk.key===cur?' sel':''}${sig?' sig':''}" data-k="${bk.key}" title="${B.desc||''}">
+      <div class="hd"><span class="nm">${B.name}</span>${badge}</div>${rows}</div>`;
+  }).join('');
+}
+$('boards').addEventListener('click',e=>{
+  const c=e.target.closest('.bd'); if(!c) return;
+  cur=c.dataset.k; render();
+});
+
+/* ---------- chart ---------- */
+let cvW=900;
+function measure(){ cvW = $('plot').clientWidth || 900; }
+
 function winIdx(B){
   const n=B.dates.length, i1=n-1;
   const r=RANGES.find(r=>r[0]===RNG);
@@ -504,24 +467,32 @@ function winIdx(B){
   const cut=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')
             +'-'+String(t.getDate()).padStart(2,'0');
   let i0=i1; while(i0>0 && B.dates[i0-1]>=cut) i0--;
-  if(i1-i0<4) i0=Math.max(0,i1-4);            // 窗口内至少 5 个点
+  if(i1-i0<4) i0=Math.max(0,i1-4);
   return [i0,i1];
 }
 
+/* 信号点：S 青蓝双环 / A 带环实心 / B 实心 / C 空心，下面标字母（冒烟测试按 class 计数，勿改 class 名） */
+function sigMarker(cx, cy, g){
+  const col=GCOL[g]||GCOL.C; let s='';
+  if(g==='S') s+=`<circle cx="${cx}" cy="${cy}" r="11.5" fill="none" stroke="${col}" stroke-width="1.1" opacity=".5"/>`;
+  if(g==='S'||g==='A') s+=`<circle class="halo" cx="${cx}" cy="${cy}" r="8.5" fill="none" stroke="${col}" stroke-width="1.3" opacity=".95"/>`;
+  const fill=g==='C'?'none':col;
+  s+=`<path class="sigmk" d="M${cx} ${(cy-7).toFixed(1)} l-6.5 11 l13 0 Z" fill="${fill}" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/>`;
+  s+=`<text x="${cx}" y="${(cy+23).toFixed(1)}" fill="${col}" font-size="10.5" font-weight="700" text-anchor="middle">${g}</text>`;
+  return s;
+}
+
 /* ---------- 合并视图：三个模型各一张图 ----------
-   为什么不叠在一张图（2026-09-23）：三者虽然都标 0~100，但**刻度中心不同**。
-   近 750 日分值中位数：SWING 58~70、SWING-2 44~51、SWING-3 34~49；
-   「分值 50」在 SWING-3 里实际落在自身分布的 83 分位
-   （MA20 斜率的 p98 是 p2 的 3 倍，分布严重右偏，而三者共用同一个 p2/p98 线性映射）。
-   叠在一起会让人误读成「SWING-3 特别超卖」——其实是刻度不同，不是更超卖。
-   分开画后每张图只跟自己比：自己的曲线 + 自己的阈值 + 自己的信号点。 */
+   为什么不叠在一张图（2026-09-23）：三者都标 0~100 但刻度中心不同
+   （近 750 日中位数 58~70 / 44~51 / 34~49），叠一起会误读成「均线止跌特别超卖」。
+   分开画后每张图只跟自己比：自己的曲线 + 自己的触发线 + 自己的信号点。 */
 const SUB3=[
-  {key:'swing',  name:'回调底 SWING',    short:'回调底',  color:'#5FA8FF',
+  {key:'swing',  name:'跌得深',  color:'#63B3FF',
    hint:'看「跌到哪了」——价格离近期高点与各条均线有多远', srcs:['swing','both']},
-  {key:'swing2', name:'动量拐点 SWING-2', short:'动量拐点', color:'#C9A2FF',
-   hint:'看「跌得还有多快」——MACD 柱跌到自身极低分位', srcs:['macd','both']},
-  {key:'swing3', name:'均线拐点 SWING-3', short:'均线拐点', color:'#FFB86B',
-   hint:'看「均线还跌得多急」——MA20 斜率极低且当日已回升', srcs:['maslope','both']},
+  {key:'swing2', name:'跌势放缓', color:'#C9A2FF',
+   hint:'看「跌得还有多快」——下跌的劲正在衰竭', srcs:['macd','both']},
+  {key:'swing3', name:'均线止跌', color:'#FFB86B',
+   hint:'看「均线还跌得多急」——跌到极急且当天已放缓', srcs:['maslope','both']},
 ];
 let GEOS=[];
 
@@ -535,17 +506,17 @@ function bindHover(svg,g){
     const hv=svg.querySelector('.hoverline'), hd=svg.querySelector('.hoverdot');
     if(hv){hv.setAttribute('x',hx);hv.style.display='';}
     if(hd){hd.setAttribute('cx',hx);hd.setAttribute('cy',g.y(g.sc[i]));hd.style.display='';}
-    const tip=document.getElementById('tip');
+    const tip=$('tip');
     tip.style.display='block';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY-10)+'px';
     const evs2=g.evmap[g.dates[i]]||[];
     const evTxt=evs2.map(e=>{
       const gg=gradeOf(e);
-      const rr=(e.ret!=null?`　T+${g.hold||7} ${e.ret>0?'+':''}${fmt(e.ret)}%`:'　待验证');
-      const stag=(e.src==='macd'?'<span style="color:#C9A2FF">◆动量拐点</span> '
-        :e.src==='maslope'?'<span style="color:#FFB86B">●均线拐点</span> '
-        :e.src==='swing'?'<span style="color:#5FA8FF">▲回调底</span> '
-        :'<span style="color:#F5B544">多模型同时</span> ');
-      return `<div style="margin-top:4px">${stag}<b style="color:${GCOL[gg]}">${gg} 级</b> 小波段低点信号`
+      const rr=(e.ret!=null?`　之后 ${g.hold||7} 天 ${e.ret>0?'+':''}${fmt(e.ret)}%`:'　之后 7 天 待验证');
+      const stag=(e.src==='macd'?'<span style="color:#C9A2FF">◆跌势放缓</span> '
+        :e.src==='maslope'?'<span style="color:#FFB86B">●均线止跌</span> '
+        :e.src==='swing'?'<span style="color:#63B3FF">▲跌得深</span> '
+        :'<span style="color:#F5B544">多个模型同时</span> ');
+      return `<div style="margin-top:4px">${stag}<b style="color:${GCOL[gg]}">${gg} 级提示</b>`
              +` · ${whyOf(e,gg)}${rr}</div>`;
     }).join('');
     const lbl=GEOS.map(gg=>`${gg.short} <b style="color:${gg.color}">${fmt(gg.sc[i],1)}</b>`).join('　');
@@ -553,33 +524,29 @@ function bindHover(svg,g){
   });
   svg.addEventListener('mouseleave',()=>{
     svg.querySelectorAll('.hoverline,.hoverdot').forEach(n=>n.style.display='none');
-    document.getElementById('tip').style.display='none';
+    $('tip').style.display='none';
   });
 }
 
 function drawUnion(){
-  const B=DATA[cur], el=document.getElementById('plot');
-  const ovl=document.getElementById('ovl').checked;
+  const B=DATA[cur], el=$('plot');
+  const ovl=$('ovl').checked;
   const [i0,i1]=winIdx(B), N=i1-i0+1;
   const cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
-  /* 三张子图：宽高比刻意做得比主图扁（≈5:1），三张叠起来总高才不至于要滚很久；
-     纵轴幅度靠 TOPY/BOTY 留 0.75H 的绘图区来保证，不靠图高。
-     W 要扣掉 .subchart 的 12px×2 padding + 1px×2 border，否则 viewBox 比容器宽，
-     SVG 会被等比缩到 98% 左右（不会变形，但白留一圈边）。 */
+  /* 三张子图宽高比 ≈5:1；W 扣掉 .subchart 的 12px×2 padding + 1px×2 border */
   const W=Math.max(560,cvW-26);
   const H=Math.max(200,Math.min(300,Math.round(W*0.22)));
   const PADX=32,L=62,RM=54,TOPY=H*0.11,BOTY=H*0.86, PW=W-PADX*2-L-RM;
   const x=a=>L+PW*(a-i0)/(N-1);
   let clo=Math.min(...cl), chi=Math.max(...cl);
   const yc=v=>BOTY-(v-clo)/(chi-clo||1)*(BOTY-TOPY);
-  const evs=EVS(B), evmap={};
+  const evs=(B.union_events||[]), evmap={};
   evs.forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
   GEOS=[];
   const blocks=SUB3.map(c=>{
     const full = c.key==='swing'?(B.swing||[]):(c.key==='swing2'?(B.swing2||[]):(B.swing3||[]));
     const sc=full.slice(i0,i1+1);
     const T0=c.key==='swing'?SW().thr:(c.key==='swing2'?SRC2().thr:SRC3().thr);
-    /* 每张图自己的 y 轴：只含自己的曲线 + 自己的阈值（保证阈值线永远在视野内） */
     let lo=Math.min(...sc,T0), hi=Math.max(...sc,T0);
     const span=Math.max(hi-lo,8), pad=span*0.15;
     const yLo=lo-pad, yHi=hi+pad;
@@ -587,20 +554,20 @@ function drawUnion(){
     const yMin=Math.floor(yLo/step)*step, yMax=Math.ceil(yHi/step)*step;
     const y=v=>BOTY-(v-yMin)/(yMax-yMin)*(BOTY-TOPY);
     const P=[];
-    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3ECF8E" opacity=".09"/>`);
+    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3ECF8E" opacity=".08"/>`);
     for(let v=Math.ceil(yMin/step)*step; v<=yMax+1e-9; v+=step){
-      P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#1C2532" stroke-width="1"/>`);
-      P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#7A8AA1" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
+      P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#141B26" stroke-width="1"/>`);
+      P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#71809A" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
     }
-    P.push(`<line x1="${L}" y1="${BOTY}" x2="${L+PW}" y2="${BOTY}" stroke="#28323F" stroke-width="1"/>`);
+    P.push(`<line x1="${L}" y1="${BOTY}" x2="${L+PW}" y2="${BOTY}" stroke="#232D3C" stroke-width="1"/>`);
     P.push(`<line x1="${L}" y1="${y(T0)}" x2="${L+PW}" y2="${y(T0)}" stroke="#6FE39C"
-             stroke-width="1.2" stroke-dasharray="3 3" opacity=".75"/>`);
-    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#6FE39C" font-size="10"
-             text-anchor="end" opacity=".9">入场阈值 ${T0}（≤ 即触发）</text>`);
+             stroke-width="1.2" stroke-dasharray="4 3" opacity=".8"/>`);
+    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#6FE39C" font-size="10.5"
+             text-anchor="end" opacity=".9">触发线 ${T0}（跌破就提示）</text>`);
     if(ovl){
       let dd='';
       for(let a=i0;a<=i1;a++) dd+=(a>i0?'L':'M')+x(a).toFixed(1)+' '+yc(cl[a-i0]).toFixed(1);
-      P.push(`<path d="${dd}" fill="none" stroke="#5C6E85" stroke-width="1.3" opacity=".75"/>`);
+      P.push(`<path d="${dd}" fill="none" stroke="#7A8CA3" stroke-width="1.4" opacity=".8"/>`);
     }
     const gid='g_'+c.key;
     let d='',a2=`M${L} ${BOTY} `;
@@ -611,65 +578,58 @@ function drawUnion(){
       <stop offset="100%" stop-color="${c.color}" stop-opacity="0"/></linearGradient></defs>`);
     P.push(`<path d="${a2}" fill="url(#${gid})"/>`);
     P.push(`<path d="${d}" fill="none" stroke="${c.color}" stroke-width="1.8" stroke-linejoin="round"/>`);
-    /* 只画本模型的信号点（src="both" 表示当天多个模型同时触发，三张图都画） */
     evs.filter(e=>c.srcs.includes(e.src)).forEach(e=>{
       const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
-      const g=gradeOf(e), col=GCOL[g]||GCOL.C;
-      const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+11;
-      P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
-               stroke="${col}" stroke-width="1" opacity=".5"/>`);
-      if(g==='A')
-        P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="8.5" fill="none"
-                 stroke="${col}" stroke-width="1.3" opacity=".9"/>`);
-      const fill=g==='C'?'none':col, sw=g==='C'?1.6:1.1;
-      const ap=(cyc-7).toFixed(1), bs=(cyc+4).toFixed(1);
-      P.push(`<path d="M${cx} ${ap} l-6 ${(bs-ap)} l12 0 Z" fill="${fill}"
-               stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`);
+      P.push(sigMarker(+x(a).toFixed(1), y(sc[a-i0])+11, gradeOf(e)));
     });
     const lx=x(i1), ly=y(sc[N-1]);
-    P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="${c.color}" stroke="#0E131A" stroke-width="2"/>`);
+    P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="${c.color}" stroke="#0A0E14" stroke-width="2"/>`);
     P.push(`<text x="${(lx-8).toFixed(1)}" y="${(ly-10).toFixed(1)}" fill="${c.color}"
              font-size="12" font-weight="700" text-anchor="end">${fmt(sc[N-1],1)}</text>`);
     const nT=Math.min(6,N);
     for(let k=0;k<nT;k++){
       const a=i0+Math.round(k*(N-1)/(nT-1));
       const lab = N<=70 ? dt[a-i0].slice(5) : dt[a-i0].slice(0,7);
-      P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+20}" fill="#7A8AA1" font-size="12" text-anchor="middle">${lab}</text>`);
+      P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+20}" fill="#71809A" font-size="12" text-anchor="middle">${lab}</text>`);
     }
     P.push(`<rect class="hoverline" width="1" height="${BOTY-TOPY}" y="${TOPY}" fill="${c.color}" opacity=".3" style="display:none"/>`);
     P.push(`<circle class="hoverdot" r="4.5" fill="#fff" style="display:none"/>`);
-    GEOS.push({key:c.key,name:c.name,short:c.short,color:c.color,thr:T0,
+    GEOS.push({key:c.key,name:c.name,short:c.name,color:c.color,thr:T0,
                x,y,sc,L,PW,N,i0,W,dates:dt,close:cl,evmap,hold:SW().hold});
     return `<div class="subchart">
       <div class="schead">
         <span class="sdot" style="background:${c.color}"></span>
         <b style="color:${c.color}">${c.name}</b>
         <span class="shint">${c.hint}</span>
-        <span class="sval">最新 <b style="color:${c.color}">${fmt(sc[N-1],1)}</b>　阈值 ≤${T0}</span>
+        <span class="sval">最新 <b style="color:${c.color}">${fmt(sc[N-1],1)}</b>　触发线 ≤${T0}${sc[N-1]<=T0?'　<b style="color:#6FE39C">已跌破</b>':''}</span>
       </div>
       <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>
     </div>`;
   }).join('');
   el.innerHTML=blocks;
   el.querySelectorAll('svg').forEach((svg,k)=>bindHover(svg,GEOS[k]));
-  const ri=document.getElementById('rnginfo');
-  if(ri) ri.innerHTML=`${dt[0]} ~ ${dt[N-1]}　·　${N} 个交易日　·　`
-    +`三个模型各自一张图（<b style="color:#F5B544">刻度不同，不要横着比高低</b>，各自跟自己比）`;
+  const ri=$('rnginfo');
+  if(ri) ri.innerHTML='';        // 小机会·合并视图不显示日期区间与口径提示（2026-10-07 用户要求精简）
 }
 
 function drawChart(){
   if(MODE==='swing' && SRC==='union'){ drawUnion(); return; }
-  const B=DATA[cur], el=document.getElementById('plot');
-  const ovl  =document.getElementById('ovl').checked;
+  const B=DATA[cur], el=$('plot');
+  const ovl=$('ovl').checked;
   const [i0,i1]=winIdx(B), N=i1-i0+1;
-  const sc=SR(B).slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
+  const SRB = MODE!=='swing' ? B.score
+            : (SRC==='swing2' ? (B.swing2||[]) : SRC==='swing3' ? (B.swing3||[]) : (B.swing||[]));
+  const EVB = MODE!=='swing' ? B.bottom
+            : SRC==='swing2' ? (B.swing2_events||[])
+            : SRC==='swing3' ? (B.swing3_events||[]) : (B.swing_events||[]);
+  const sc=SRB.slice(i0,i1+1), cl=B.close.slice(i0,i1+1), dt=B.dates.slice(i0,i1+1);
   const SWG = MODE==='swing';
+  const mc = SWG ? (SRC==='swing2'?'#C9A2FF':(SRC==='swing3'?'#FFB86B':'#63B3FF')) : '#63B3FF';
 
-  const W=Math.max(560,cvW), H=Math.max(340,Math.min(520,Math.round(W*0.36)));
+  const W=Math.max(560,cvW), H=Math.max(340,Math.min(460,Math.round(W*0.30)));
   const PADX=32, L=62, RM=54, TOPY=H*0.075, BOTY=H*0.90;
   const PW=W-PADX*2-L-RM;
 
-  /* y 轴：按窗口自适应；0 / 100 离数据不远时纳入，保留恐贪刻度感 */
   let lo=Math.min(...sc), hi=Math.max(...sc);
   const span=Math.max(hi-lo,10), pad=span*0.12;
   let yLo=lo-pad, yHi=hi+pad;
@@ -678,28 +638,24 @@ function drawChart(){
   const step=(yHi-yLo)>120?20:(yHi-yLo)>60?10:(yHi-yLo)>30?5:2;
   const yMin=Math.floor(yLo/step)*step, yMax=Math.ceil(yHi/step)*step;
   const y=v=>BOTY-(v-yMin)/(yMax-yMin)*(BOTY-TOPY);
-  const x=a=>L+PW*(a-i0)/(N-1);               // a = 绝对索引
+  const x=a=>L+PW*(a-i0)/(N-1);
 
   let clo=Math.min(...cl), chi=Math.max(...cl);
   const yc=v=>BOTY-(v-clo)/(chi-clo||1)*(BOTY-TOPY);
 
   const P=[];
   const T0=THR();
-  // 溢出区 / 超卖区
   if(SWG){
-    // SWING：分值越低越超卖 → 阈值**以下**是入场区
-    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3ECF8E" opacity=".09"/>`);
+    if(T0>yMin) P.push(`<rect x="${L}" y="${y(T0)}" width="${PW}" height="${BOTY-y(T0)}" fill="#3ECF8E" opacity=".08"/>`);
   }else{
     if(yMin<0) P.push(`<rect x="${L}" y="${y(0)}" width="${PW}" height="${BOTY-y(0)}" fill="#3ECF8E" opacity=".07"/>`);
-    if(yMax>100) P.push(`<rect x="${L}" y="${TOPY}" width="${PW}" height="${y(100)-TOPY}" fill="#FF5C5C" opacity=".09"/>`);
+    if(yMax>100) P.push(`<rect x="${L}" y="${TOPY}" width="${PW}" height="${y(100)-TOPY}" fill="#FF5C5C" opacity=".08"/>`);
   }
-  // 网格 + y 轴刻度
   for(let v=Math.ceil(yMin/step)*step; v<=yMax+1e-9; v+=step){
-    P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#1C2532" stroke-width="1"/>`);
-    P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#7A8AA1" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
+    P.push(`<line x1="${L}" y1="${y(v)}" x2="${L+PW}" y2="${y(v)}" stroke="#141B26" stroke-width="1"/>`);
+    P.push(`<text x="${L-10}" y="${y(v)+4}" fill="#71809A" font-size="12" text-anchor="end">${+v.toFixed(2)}</text>`);
   }
-  P.push(`<line x1="${L}" y1="${BOTY}" x2="${L+PW}" y2="${BOTY}" stroke="#28323F" stroke-width="1"/>`);
-  // 0 / 100 边界（SENTI-1 的绝对刻度）
+  P.push(`<line x1="${L}" y1="${BOTY}" x2="${L+PW}" y2="${BOTY}" stroke="#232D3C" stroke-width="1"/>`);
   if(!SWG){
     [[0,'#3ECF8E','下'],[100,'#FF5C5C','上']].forEach(([v,c,dir])=>{
       if(v>=yMin&&v<=yMax)
@@ -708,306 +664,197 @@ function drawChart(){
         P.push(`<text x="${L+6}" y="${v<yMin?BOTY-6:TOPY+13}" fill="${c}" font-size="10" opacity=".65">${v} 线在${dir}方（窗口外）</text>`);
     });
   }
-  // 入场阈值线
   if(T0>=yMin&&T0<=yMax){
-    const lab = SWG ? `入场阈值 ${T0}（≤ 即触发）` : `入场阈值 ${T0}`;
+    const lab = `触发线 ${T0}（跌破就提示）`;
     P.push(`<line x1="${L}" y1="${y(T0)}" x2="${L+PW}" y2="${y(T0)}" stroke="#6FE39C"
-             stroke-width="1.2" stroke-dasharray="3 3" opacity=".7"/>`);
-    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#6FE39C" font-size="10"
-             text-anchor="end" opacity=".85">${lab}</text>`);
+             stroke-width="1.3" stroke-dasharray="4 3" opacity=".8"/>`);
+    P.push(`<text x="${L+PW-4}" y="${y(T0)-5}" fill="#6FE39C" font-size="10.5"
+             text-anchor="end" opacity=".9">${lab}</text>`);
   }
-  // 指数收盘
   if(ovl){
     let d='';
     for(let a=i0;a<=i1;a++) d+=(a>i0?'L':'M')+x(a).toFixed(1)+' '+yc(cl[a-i0]).toFixed(1);
-    P.push(`<path d="${d}" fill="none" stroke="#5C6E85" stroke-width="1.4" opacity=".8"/>`);
-    P.push(`<text x="${L+PW+8}" y="${yc(chi)+4}" fill="#7286A0" font-size="12">${Math.round(chi)}</text>`);
-    P.push(`<text x="${L+PW+8}" y="${yc(clo)+4}" fill="#7286A0" font-size="12">${Math.round(clo)}</text>`);
+    P.push(`<path d="${d}" fill="none" stroke="#7A8CA3" stroke-width="1.5" opacity=".8"/>`);
+    P.push(`<text x="${L+PW+8}" y="${yc(chi)+4}" fill="#71809A" font-size="12">${Math.round(chi)}</text>`);
+    P.push(`<text x="${L+PW+8}" y="${yc(clo)+4}" fill="#71809A" font-size="12">${Math.round(clo)}</text>`);
   }
-  // 面积 + 主线
   let d='',a2=`M${L} ${BOTY} `;
   for(let a=i0;a<=i1;a++){const s=x(a).toFixed(1)+' '+y(sc[a-i0]).toFixed(1);d+=(a>i0?'L':'M')+s;a2+=`L${s} `;}
   a2+=`L${L+PW} ${BOTY} Z`;
   P.push(`<defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="#5FA8FF" stop-opacity=".30"/>
-    <stop offset="100%" stop-color="#5FA8FF" stop-opacity="0"/></linearGradient></defs>`);
+    <stop offset="0%" stop-color="${mc}" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="${mc}" stop-opacity="0"/></linearGradient></defs>`);
   P.push(`<path d="${a2}" fill="url(#g1)"/>`);
-  P.push(`<path d="${d}" fill="none" stroke="#5FA8FF" stroke-width="2" stroke-linejoin="round"/>`);
-  // 信号点：一律是「低点买入」信号，画在曲线下方；样式 = 置信等级
-  // （A 实心+光环 / B 实心 / C 空心。顶部信号已移除，不再有方向之分）
-  const evs=EVS(B);
-  evs.forEach(e=>{
+  P.push(`<path d="${d}" fill="none" stroke="${mc}" stroke-width="2.2" stroke-linejoin="round"/>`);
+  EVB.forEach(e=>{
     const a=B.dates.indexOf(e.date); if(a<i0||a>i1) return;
-    const g=gradeOf(e), col=GCOL[g]||GCOL.C;
-    const cx=x(a).toFixed(1), cyy=y(sc[a-i0]), cyc=cyy+12;
-    P.push(`<line x1="${cx}" y1="${cyy.toFixed(1)}" x2="${cx}" y2="${cyc.toFixed(1)}"
-             stroke="${col}" stroke-width="1" opacity=".5"/>`);
-    if(g==='A')
-      P.push(`<circle cx="${cx}" cy="${cyc.toFixed(1)}" r="9.5" fill="none"
-               stroke="${col}" stroke-width="1.4" opacity=".9"/>`);
-    const fill=g==='C'?'none':col, sw=g==='C'?1.8:1.2;
-    const ap=(cyc-8).toFixed(1), bs=(cyc+5).toFixed(1);
-    P.push(`<path d="M${cx} ${ap} l-6.5 ${(bs-ap)} l13 0 Z"
-             fill="${fill}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`);
+    P.push(sigMarker(+x(a).toFixed(1), y(sc[a-i0])+12, gradeOf(e)));
   });
-  // 最新点标注（与左侧卡片同源，避免"对不上"）
   const lx=x(i1), ly=y(sc[N-1]);
-  P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4.5" fill="#5FA8FF" stroke="#0E131A" stroke-width="2"/>`);
-  P.push(`<text x="${(lx-8).toFixed(1)}" y="${(ly-11).toFixed(1)}" fill="#8FC3FF"
-           font-size="12" font-weight="700" text-anchor="end">${fmt(sc[N-1],1)}</text>`);
-  // 时间轴
+  P.push(`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="5" fill="${mc}" stroke="#0A0E14" stroke-width="2"/>`);
+  P.push(`<text x="${(lx-9).toFixed(1)}" y="${(ly-11).toFixed(1)}" fill="${mc}"
+           font-size="13" font-weight="700" text-anchor="end">${fmt(sc[N-1],1)}</text>`);
   const nT=Math.min(6,N);
   for(let k=0;k<nT;k++){
     const a=i0+Math.round(k*(N-1)/(nT-1));
     const lab = N<=70 ? dt[a-i0].slice(5) : dt[a-i0].slice(0,7);
-    P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+22}" fill="#7A8AA1" font-size="12" text-anchor="middle">${lab}</text>`);
+    P.push(`<text x="${x(a).toFixed(1)}" y="${BOTY+22}" fill="#71809A" font-size="12" text-anchor="middle">${lab}</text>`);
   }
-  // 命中提示
-  P.push(`<rect id="hover" width="1" height="${BOTY-TOPY}" y="${TOPY}" fill="#5FA8FF" opacity=".25" style="display:none"/>`);
-  P.push(`<circle id="hdot" r="4.5" fill="#fff" style="display:none"/>`);
+  P.push(`<rect class="hoverline" width="1" height="${BOTY-TOPY}" y="${TOPY}" fill="${mc}" opacity=".25" style="display:none"/>`);
+  P.push(`<circle class="hoverdot" r="4.5" fill="#fff" style="display:none"/>`);
 
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">${P.join('')}</svg>`;
   const evmap={};
-  EVS(B).forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
-  el._geo={x,y,sc,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,evmap,hold:HOLD};
+  EVB.forEach(e=>{(evmap[e.date]=evmap[e.date]||[]).push(e);});
+  const geo={x,y,sc,close:cl,dates:dt,i0,N,W,H,L,PW,TOPY,BOTY,evmap,hold:HOLD2()};
 
   const svg=el.querySelector('svg');
   svg.addEventListener('mousemove',ev=>{
-    const g=el._geo, r=svg.getBoundingClientRect();
+    const g=geo, r=svg.getBoundingClientRect();
     const px=(ev.clientX-r.left)/r.width*g.W;
     let i=Math.round((px-g.L)/(g.PW/(g.N-1)));
     i=Math.max(0,Math.min(g.N-1,i));
     const hx=g.x(g.i0+i);
-    const hv=document.getElementById('hover'),hd=document.getElementById('hdot');
+    const hv=svg.querySelector('.hoverline'), hd=svg.querySelector('.hoverdot');
     hv.setAttribute('x',hx);hv.style.display='';
     hd.setAttribute('cx',hx);hd.setAttribute('cy',g.y(g.sc[i]));hd.style.display='';
-    const tip=document.getElementById('tip');
+    const tip=$('tip');
     tip.style.display='block';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY-10)+'px';
     const evs2=g.evmap[g.dates[i]]||[];
     const evTxt=evs2.map(e=>{
       const gg=gradeOf(e);
-      const nm=(MODE==='swing'?'小波段低点信号':'底部信号');
-      const rr=(e.ret!=null?`　T+${g.hold||20} ${e.ret>0?'+':''}${fmt(e.ret)}%`
-                           :'　待验证');
-      const stag = (MODE==='swing'&&SRC==='union')
-        ? (e.src==='macd' ? '<span style="color:#C9A2FF">◆动量拐点</span> '
-           : e.src==='maslope' ? '<span style="color:#FFB86B">●均线拐点</span> '
-           : e.src==='swing' ? '<span style="color:#5FA8FF">▲回调底</span> '
-           : '<span style="color:#F5B544">多模型同时</span> ')
-        : '';
-      return `<div style="margin-top:4px">${stag}<b style="color:${GCOL[gg]}">${gg} 级</b> ${nm}
+      const nm=(MODE==='swing'?'提示：跌到位了（小波段）':'大底提示');
+      const rr=(e.ret!=null?`　之后 ${g.hold} 天 ${e.ret>0?'+':''}${fmt(e.ret)}%`:`　之后 ${g.hold} 天 待验证`);
+      return `<div style="margin-top:4px"><b style="color:${GCOL[gg]}">${gg} 级</b> ${nm}
               · ${whyOf(e,gg)}${rr}</div>`;
     }).join('');
-    const lbl = MODE!=='swing' ? `情绪分值 <b>${fmt(g.sc[i],1)}</b>`
-      : SRC==='swing2' ? `动量拐点 <b>${fmt(g.sc[i],1)}</b>`
-      : SRC==='swing3' ? `均线拐点 <b>${fmt(g.sc[i],1)}</b>（越低＝均线跌得越急）`
-      : `SWING 超卖度 <b>${fmt(g.sc[i],1)}</b>`;
-    tip.innerHTML=`<b>${g.dates[i]}</b><br>` + lbl
+    const mname = MODE!=='swing' ? '大机会温度'
+      : SRC==='swing2' ? '跌势放缓' : SRC==='swing3' ? '均线止跌' : '跌得深';
+    tip.innerHTML=`<b>${g.dates[i]}</b><br>${mname} <b style="color:${mc}">${fmt(g.sc[i],1)}</b>`
       + `<br>指数 ${g.close[i]}` + evTxt;
   });
   svg.addEventListener('mouseleave',()=>{
-    document.getElementById('hover').style.display='none';
-    document.getElementById('hdot').style.display='none';
-    document.getElementById('tip').style.display='none';
+    svg.querySelectorAll('.hoverline,.hoverdot').forEach(n=>n.style.display='none');
+    $('tip').style.display='none';
   });
 
-  // 窗口信息（图上画的就是原始分值，与左侧卡片同一个值）
-  const ri=document.getElementById('rnginfo');
+  const ri=$('rnginfo');
   if(ri) ri.innerHTML=`${dt[0]} ~ ${dt[N-1]}　·　${N} 个交易日　·　最新 `
-    +`<b style="color:#9CC7FF">${fmt(SR(B)[i1],1)}</b>`
-    +`（与左侧卡片同一个值）`;
+    +`<b style="color:${mc}">${fmt(sc[N-1],1)}</b>`;
 }
 
-/* ---------- 图例 / 等级说明（随模式切换） ---------- */
+/* ---------- 图例 / 大白话说明 / 实测数字（随模式切换） ---------- */
 const LEGEND_SENTI =
-  `<span><i style="background:var(--blu)"></i>情绪分值</span>
-   <span><i style="background:#5C6E85"></i>指数收盘（右轴）</span>
-   <span><i style="background:var(--grn)"></i>&lt;0 底部溢出区</span>
-   <span><i style="background:#6FE39C"></i>入场阈值线</span>
-   <span><i style="background:var(--red)"></i>&gt;100 过热区（不出信号）</span>
-   <span><i style="background:var(--yel)"></i>信号点</span>
-   <span style="white-space:nowrap">等级：
-     <b style="color:#6FE39C">▲</b>A 高置信（实心+光环）　
-     <b style="color:#F5B544">▲</b>B 中（实心）　
-     <b style="color:#96A5BA">△</b>C 低（空心）</span>`;
-/* 单模型视图：曲线说明随 SRC 变，等级说明是通用的（不写死某个模型的百分比） */
+  `<span><i style="background:var(--blu)"></i>温度（蓝线）</span>
+   <span><i style="background:#7A8CA3"></i>指数走势（灰线，对照看）</span>
+   <span><i style="background:var(--grn)"></i>&lt;0 极度恐慌区</span>
+   <span><i style="background:#6FE39C"></i>触发线：跌破才提示</span>
+   <span><i style="background:var(--red)"></i>&gt;100 过热区（不出提示）</span>
+   <span style="white-space:nowrap">提示点等级：
+     <b style="color:#6FE39C">▲A</b> 证据最足（实心+环）　
+     <b style="color:#F5B544">▲B</b> 一般（实心）　
+     <b style="color:#96A5BA">△C</b> 偏弱（空心）</span>`;
 const LEGEND_ONE_HEAD = {
-  swing:  `<span><i style="background:var(--blu)"></i>回调底 SWING 超卖度（越低越超卖）</span>`,
-  swing2: `<span><i style="background:#C9A2FF"></i>动量拐点 SWING-2：MACD 柱／收盘价（越低越超卖）</span>`,
-  swing3: `<span><i style="background:#FFB86B"></i>均线拐点 SWING-3：MA20 斜率（越低＝均线跌得越急，且须回升）</span>`,
+  swing:  `<span><i style="background:#63B3FF"></i>跌得深（越低＝跌得越过头）</span>`,
+  swing2: `<span><i style="background:#C9A2FF"></i>跌势放缓（越低＝下跌的劲越衰竭）</span>`,
+  swing3: `<span><i style="background:#FFB86B"></i>均线止跌（越低＝均线跌得越急，且须当天放缓）</span>`,
 };
 const LEGEND_ONE_TAIL =
-  `<span><i style="background:#5C6E85"></i>指数收盘（右轴）</span>
-   <span><i style="background:var(--grn)"></i>≤ 阈值 入场区</span>
-   <span><i style="background:#6FE39C"></i>入场阈值线</span>
-   <span><i style="background:var(--yel)"></i>信号点</span>
-   <span style="white-space:nowrap">等级＝当天共振板块数：
-     <b style="color:#4FD1E8">▲</b>S ≥5　
-     <b style="color:#6FE39C">▲</b>A ≥4　
-     <b style="color:#F5B544">▲</b>B 2~3　
-     <b style="color:#96A5BA">△</b>C 仅自身</span>`;
+  `<span><i style="background:#7A8CA3"></i>指数走势（灰线，对照看）</span>
+   <span><i style="background:var(--grn)"></i>触发线以下＝提示区</span>
+   <span><i style="background:#6FE39C"></i>触发线</span>
+   <span style="white-space:nowrap">提示点等级（＝当天几个板块一起提示）：
+     <b style="color:#4FD1E8">▲S</b> ≥5 个，最可信　
+     <b style="color:#6FE39C">▲A</b> 4 个　
+     <b style="color:#F5B544">▲B</b> 2~3 个　
+     <b style="color:#96A5BA">△C</b> 只有自己</span>`;
 const LEGEND_UNION =
-  `<span style="color:var(--yel)"><b>三个模型各画一张图</b>（刻度不同，不要横着比高低）</span>
-   <span><i style="background:var(--blu)"></i>回调底 SWING　≤22 触发</span>
-   <span><i style="background:#C9A2FF"></i>动量拐点 SWING-2　≤12 触发</span>
-   <span><i style="background:#FFB86B"></i>均线拐点 SWING-3　≤10 且当天须回升</span>
-   <span><i style="background:#5C6E85"></i>指数收盘（右轴）</span>
-   <span><i style="background:var(--grn)"></i>≤ 各自阈值＝入场区</span>
-   <span><i style="background:var(--yel)"></i>信号点</span>
-   <span style="white-space:nowrap">等级＝当天有几个板块出信号（并集口径）：
-     <b style="color:#4FD1E8">▲</b>S ≥5　
-     <b style="color:#6FE39C">▲</b>A ≥4　
-     <b style="color:#F5B544">▲</b>B 2~3　
-     <b style="color:#96A5BA">△</b>C 仅自身</span>`;
+  `<span><i style="background:#63B3FF"></i>跌得深　≤${SW().thr} 提示</span>
+   <span><i style="background:#C9A2FF"></i>跌势放缓　≤${SRC2().thr} 提示</span>
+   <span><i style="background:#FFB86B"></i>均线止跌　≤${SRC3().thr} 且当天须放缓</span>
+   <span><i style="background:#7A8CA3"></i>指数走势（灰线，对照看）</span>
+   <span style="white-space:nowrap">提示点等级（＝当天几个板块一起提示）：
+     <b style="color:#4FD1E8">▲S</b> ≥5 个，最可信　
+     <b style="color:#6FE39C">▲A</b> 4 个　
+     <b style="color:#F5B544">▲B</b> 2~3 个　
+     <b style="color:#96A5BA">△C</b> 只有自己</span>`;
 
 function renderMeta(){
   const SWG=MODE==='swing', sw=SW();
-  document.getElementById('legend').innerHTML =
+  mtabsEl.style.display = SWG ? '' : 'none';
+  $('legend').innerHTML =
     !SWG ? LEGEND_SENTI
          : (SRC==='union' ? LEGEND_UNION
             : (LEGEND_ONE_HEAD[SRC]||LEGEND_ONE_HEAD.swing)+LEGEND_ONE_TAIL);
-  document.getElementById('gsum').textContent =
-    SWG?'等级说明：共振强弱怎么看':'等级说明：A / B / C 怎么用';
-  document.getElementById('gbody').innerHTML = SWG
-    ? `${SRC==='union'
-        ? `<b class="k">⚠️ 上面是三个模型各自一张图，不是一条曲线</b>：三者虽然都标 0~100，
-           但分值刻度的<b class="k">中心不同</b>（近 750 日分值中位数：回调底 58~70、
-           动量拐点 44~51、均线拐点 34~49）。叠在一张图上会让人误以为
-           「均线拐点特别超卖」—— 其实是刻度不同，不是更超卖。
-           所以每张图只跟自己比：看它离<b class="k">自己的阈值线</b>有多远。
-           <br>`:''}`
-      + `<b class="k">三个小波段模型各看一个维度</b>，信号几乎不重叠，合并起来信号最多：
-         <b style="color:#5FA8FF">回调底</b>看「跌到哪了」、
-         <b style="color:#C9A2FF">动量拐点</b>看「跌得还有多快」、
-         <b style="color:#FFB86B">均线拐点</b>看「均线还跌得多急，且当天已经回升」。
-         近 3 年 6 板块：三个合并 <b class="k">189 次信号 / 命中 70.9%</b>（基线 48.6%），
-         比只用前两个（143 次 / 66.4%）<b class="k">信号多 32%、命中高 4.5 个点</b>。
-         <br><b class="k">⚠️ 信号次数 ≠ 事件次数</b>：同一波下跌里三个模型往往隔几天各触发一次，
-         只按同日去重会重复计数。按「同板块 ±4 自然日算一件事、只算第一枪」合并后，
-         189 次信号实际是 <b class="k">136 件事 / 命中 67.6%</b>（Wilson 下界 59.4%）。
-         上方的信号源切换条会同时给出两个数。
-         <br><b class="k">等级＝当天有几个板块一起出信号</b>（含自己）。共振越强＝越像系统性回调，
-         而不是这一个板块自己的问题。实测命中率随共振单调上升
-         （以 SWING 为例，近 3 年 / 含 2021-22 熊市的 5.7 年）：
-         <b style="color:#4FD1E8">S</b>（≥5）81% / <b class="k">87%</b>、
-         <b style="color:#6FE39C">A</b>（4）78% / 79%、
-         <b style="color:#F5B544">B</b>（2~3）63% / 57%、
-         <b style="color:#96A5BA">C</b>（只有自己）＝全样本平均 64% / 60%。
-         <br><b class="k">重要</b>：共振等级<b class="k">不决定出不出信号</b>，只用来定仓位。
-         科创板 2026-08-03 是 B 级、2026-09-14 是 C 级 —— 它们仍会被标出来，
-         只是证据强度不如 S/A 级。
-         <br><b class="k">别把 S 级的数字当成全部信号的能力</b>：全部信号 64%，S 级 87%，
-         S 级一年只有 3~5 次。
-         <br>判定口径：T+${sw.hold} 期末收益 &gt; 0 且期间最深回撤 ≥ −${sw.tol}%，
-         随机基线约 <b class="k">${(SUM.swing&&SUM.swing.total)?SUM.swing.total.base:'—'}%</b>。`
-    : `<b class="k">等级有什么用</b>：等级<b class="k">不决定出不出信号</b>，它回答的是
-         「这次信号有几个独立证据支持」，只用来<b class="k">定仓位</b> ——
-         <b style="color:#6FE39C">A</b>：两个确认层都成立（估值已投降 ＋ 多板块共振）→ 证据最足，可正常甚至偏重；
-         <b style="color:#F5B544">B</b>：只成立一个 → 常规仓位；
-         <b style="color:#96A5BA">C</b>：两个都没成立 → 置信度回落到全样本平均，建议减半或观望。
-         <br>两个确认层：<b class="k">估值投降</b>＝破净股占比处于近一年高分位（市场级，管时机）；
-         <b class="k">全场共振</b>＝同一天还有别的板块也跌到 ≤0（横截面，管选谁）。
-         近 3 年：<b class="k">A 级 3 个（3/3 命中）、B 级 16 个（14/16）、C 级 0 个</b>。
-         <br><b style="color:#FF5C5C">顶部信号已移除</b>：原「首破 100」信号实测 2/9 = 22%，
-         随机基线 40%，p = 0.93，与瞎猜无法区分，所以不再产出任何顶部提示；
-         分值 &gt;100 仍然照画，但只是过热读数，<b class="k">不是卖出信号</b>。`;
 
-  // 当前模式的实测命中率（放在图表上方，跟着模式走）
-  const ms=document.getElementById('modestat');
-  if(ms){
-    if(SWG){
-      const t = SRC==='union'  ? ((SUM.union&&SUM.union.total)||{})
-              : SRC==='swing2' ? ((SUM.swing2&&SUM.swing2.total)||{})
-              : SRC==='swing3' ? ((SUM.swing3&&SUM.swing3.total)||{})
-              : ((SUM.swing&&SUM.swing.total)||{});
-      const r5=t.res5_n?Math.round(t.res5_ok/t.res5_n*100):null;
-      const r4=t.res4_n?Math.round(t.res4_ok/t.res4_n*100):null;
-      ms.innerHTML = `实测（近3年·6板块）　全部 <b>${t.rate??'—'}%</b>（${t.ok??0}/${t.n??0}）`
-        + (r5!=null?`　·　S级≥5 <b>${r5}%</b>（${t.res5_ok}/${t.res5_n}）`:'')
-        + (r4!=null?`　·　A级≥4 <b>${r4}%</b>（${t.res4_ok}/${t.res4_n}）`:'')
-        + `　·　基线 ${t.base??'—'}%`;
-    }else{
-      const t=SUM.total||{};
-      ms.innerHTML = `实测（近3年·6板块）　底部 <b>${t.b_n?Math.round(t.b_ok/t.b_n*100):'—'}%</b>`
-        + `（${t.b_ok??0}/${t.b_n??0}）　·　基线 ${(SUM.per&&SUM.per[cur])?SUM.per[cur].base_bottom:'—'}%`;
-    }
+  /* 大白话说明（折叠）。表达纪律：SWING 全部与 S 级分开说；信号级/事件级两个数都给 */
+  const u=(SUM.union&&SUM.union.total)||{};
+  const ev=(SUM.event&&SUM.event.union)||{};
+  const swt=(SUM.swing&&SUM.swing.total)||{};
+  $('gbody').innerHTML = SWG
+    ? `<b class="k">这三个名字是什么意思</b>：
+       <b style="color:#63B3FF">跌得深</b>＝看价格跌到多低（离近期高点和各条均线有多远）；
+       <b style="color:#C9A2FF">跌势放缓</b>＝看下跌的劲还有多大（劲快没了，哪怕价格还在创新低）；
+       <b style="color:#FFB86B">均线止跌</b>＝看平均线还跌得多急，且当天已经开始放缓。
+       三个看法很少同时提示，所以合起来机会最多。
+       <br><b class="k">提示次数 ≠ 独立机会</b>：近 3 年 6 个板块共提示 <b class="k">${u.n??189} 次</b>，
+       但同一波下跌里常隔几天又提示一次；按「同一波只算第一次」合并后是 <b class="k">${ev.n??136} 波</b>。
+       之后 7 天上涨的比例：按次数算 <b class="k">${u.rate??70.9}%</b>、按波算 <b class="k">${ev.rate??67.6}%</b>
+       （保守下限 ${ev.wilson??59.4}%）。闭眼随便买的日子约 <b class="k">${u.base??48.6}%</b> 上涨。
+       <br><b class="k">等级 = 当天有几个板块一起提示</b>（含自己）：S（≥5 个）/ A（4 个）/ B（2~3 个）/ C（只有自己）。
+       一起跌的板块越多，越像市场整体回调，而不是这个板块自身的问题。
+       等级<b class="k">不决定出不出提示</b>，只用来定仓位轻重。
+       <br><b class="k">别拿 S 级当全部提示的水平</b>：以「跌得深」为例，全部提示约 ${swt.rate??64}% 上涨，
+       S 级约 87%，但 S 级一年只有 3~5 次。
+       <br><b class="k">判定口径</b>：提示后第 ${sw.hold} 天收盘高于提示日，且中间最多浅套 ${sw.tol}%。`
+    : `<b class="k">等级有什么用</b>：等级<b class="k">不决定出不出提示</b>，只用来定仓位——
+       <b style="color:#6FE39C">A</b>：「估值投降」和「多板块一起恐慌」两个证据都成立，最足；
+       <b style="color:#F5B544">B</b>：只成立一个；
+       <b style="color:#96A5BA">C</b>：都没成立，建议减半或观望。
+       近 3 年：A 级 3 次（3/3 命中）、B 级 16 次（14/16）、C 级 0 次。
+       <br><b class="k">大底提示的整体水平</b>：13 年里按「独立行情」算是 18 次、14 次命中（约 78%）。
+       近 3 年的 17 次提示其实只对应 5 波行情，所以别看 17/19 就说 89%。
+       <br><b style="color:#FF5C5C">没有顶部提示</b>：原来的「涨过头」提示实测和瞎猜没区别（2/9），已取消。
+       温度超过 100 仍然照画，但只是「过热」读数，<b class="k">不是卖出信号</b>。`;
+
+  /* 实测数字 chip（图上方，跟着模式走）；小机会模式不显示（2026-10-07 用户要求精简） */
+  const ms=$('modestat');
+  if(SWG){
+    ms.innerHTML = '';
+  }else{
+    const t=SUM.total||{};
+    ms.innerHTML = `过去3年·6板块：大底提示 <b>${t.b_ok??0}/${t.b_n??0} 次命中</b>（只对应约 5 波独立行情）`
+      + `　·　13 年按独立行情 <b>78%</b>（14/18）`
+      + `　·　闭眼买约 <b>${(SUM.per&&SUM.per[cur])?SUM.per[cur].base_bottom:'—'}%</b>`;
   }
-}
 
+  /* 底部通栏 */
+  $('footstrip').innerHTML = SWG
+    ? `<span>过去 3 年·6 个板块：这样提示过 <b>${u.n??189} 次</b>（其实是 <b>${ev.n??136} 波</b>不同的下跌），
+        之后 7 天上涨的占 <b>${u.rate??70.9}%</b>（按波算 <b>${ev.rate??67.6}%</b>）｜
+        闭眼随便买约 <b>${u.base??48.6}%</b> ｜ S 级一年只有 3~5 次，别把它的命中率当成全部提示的水平</span>
+       <span>本页仅供复盘研究，不构成投资建议</span>`
+    : `<span>大波段·13 年：<b>18</b> 次大底提示按独立行情 <b>14</b> 次命中（约 <b>78%</b>）｜
+        近 3 年的 17 次提示只对应 5 波行情，不是 17 次独立机会</span>
+       <span>本页仅供复盘研究，不构成投资建议</span>`;
+}
 
 /* ---------- render ---------- */
 function render(){
-  const B=DATA[cur], S=SR(B);
-  const v=S[S.length-1];
-  const [txt,col]=state(v);
-  const SWG=MODE==='swing', UNION=(SWG&&SRC==='union');
-  document.getElementById('bname').textContent=B.name+'　'+B.desc;
-  const sv=document.getElementById('sval');
-  const bar=document.querySelector('.bar');
-  const bsEl=document.getElementById('barscale'), blEl=document.getElementById('barlab');
-  if(UNION){
-    /* 合并视图：三个模型刻度不同，卡片里就并排列三个数，各自跟自己的阈值比 */
-    sv.className='big3';
-    sv.innerHTML=SUB3.map(c=>{
-      const arr=(c.key==='swing'?(B.swing||[]):(c.key==='swing2'?(B.swing2||[]):(B.swing3||[])));
-      const vv=arr.length?arr[arr.length-1]:null;
-      const th=c.key==='swing'?SW().thr:(c.key==='swing2'?SRC2().thr:SRC3().thr);
-      const hit=(vv!=null&&vv<=th);
-      return `<div class="row"><span class="nm">${c.short}</span>`
-        +`<span class="v" style="color:${c.color}">${fmt(vv,1)}</span>`
-        +`<span class="th">阈值 ≤${th}${hit?'　<b style="color:#6FE39C">已达</b>':''}</span></div>`;
-    }).join('');
-    document.getElementById('stag').innerHTML=
-      `<span class="tag" style="background:#F5B54422;color:#F5B544;border:1px solid #F5B54466">三个模型刻度不同 · 各自跟自己比</span>`;
-    document.getElementById('schg').innerHTML=
-      `<div>截至 ${B.dates[B.dates.length-1]}</div>
-       <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
-    /* 单刻度条对三个刻度没有意义 → 合并视图下隐藏 */
-    if(bar) bar.style.display='none';
-    bsEl.style.display='none'; blEl.style.display='none';
-  }else{
-    sv.className='big'; sv.style.color=col; sv.textContent=fmt(v,1);
-    document.getElementById('stag').innerHTML=`<span class="tag" style="background:${col}22;color:${col};border:1px solid ${col}66">${txt}</span>`;
-    const prev=S[S.length-6]??S[0];
-    document.getElementById('schg').innerHTML=
-      `<div>截至 ${B.dates[B.dates.length-1]}　较5日前 <b style="color:${v>=prev?'var(--red)':'var(--grn)'}">${v-prev>=0?'+':''}${fmt(v-prev,1)}</b></div>
-       <div>指数 ${B.close[B.close.length-1]}（${((B.close[B.close.length-1]/B.close[0]-1)*100).toFixed(1)}% / 3年）</div>`;
-    // 刻度条：SENTI-1 是 −30~140 的绝对刻度，SWING 是 0~100 的超卖度
-    const T0=THR();
-    bsEl.style.display=''; blEl.style.display=''; if(bar) bar.style.display='';
-    bsEl.innerHTML = SWG
-      ? `<span style="left:0%">0</span><span style="left:${T0}%">${T0}</span>`
-        + `<span style="left:60%">60</span><span style="left:100%">100</span>`
-      : `<span style="left:0%">-30</span><span style="left:18.75%">0</span>`
-        + `<span style="left:81.25%">100</span><span style="left:100%">140</span>`;
-    blEl.innerHTML = SWG
-      ? '<span>超卖（入场区）</span><span>过热</span>'
-      : '<span>恐慌</span><span>贪婪</span>';
-    document.getElementById('mk').style.left =
-      (SWG ? Math.max(0,Math.min(100,v)) : Math.max(0,Math.min(100,(v+30)/160*100)))+'%';
-  }
+  const B=DATA[cur];
+  const tab=MTABS.find(t=>t.k===SRC);
+  $('ctitle').innerHTML = MODE==='swing'
+    ? `${B.name} · 小机会温度<small>当前看：${tab.n} —— ${tab.hint}</small>`
+    : `${B.name} · 大机会温度<small>温度越低 = 越恐慌；跌破触发线才提示，看 20~60 天</small>`;
+  renderBanner();
+  renderBoards();
   drawChart();
-
-  // 最近一次信号（信号表已移除，这里保留最关键的回溯信息）
-  const lastSig=EVS(B).slice().sort((p,q)=>p.date<q.date?1:-1)[0];
-  const lsEl=document.getElementById('lsig');
-  if(lsEl){
-    const g0=lastSig?gradeOf(lastSig):'C';
-    lsEl.innerHTML = lastSig
-      ? `最近信号　<b style="color:${GCOL[g0]}">${g0} 级</b>
-         ${SWG?'小波段低点':'底部'}　${lastSig.date}
-         　${whyOf(lastSig,g0)}　T+${HOLD2()}
-         ${lastSig.ret!=null
-           ? `<b class="${lastSig.ret>0?'up':'dn'}">${lastSig.ret>0?'+':''}${fmt(lastSig.ret)}%</b>`
-           : '<b style="color:var(--yel)">待验证</b>'}`
-      : '<span style="color:var(--dim)">近3年无信号</span>';
-  }
   renderMeta();
 }
 
-document.getElementById('ovl').onchange=drawChart;
+$('ovl').onchange=drawChart;
 window.addEventListener('resize',()=>{measure();drawChart();});
-syncSrc(); measure(); render();
+measure(); render();
 </script>
 </body>
 </html>

@@ -59,6 +59,15 @@ def create_app(panels: dict | None = None) -> Flask:
         s = ensure()
         return {"boards": s["payload"], "summary": s["summary"], "meta": store.meta()}
 
+    @app.route("/api/intraday")
+    def api_intraday():
+        """盘中预览：手动触发，纯内存计算，不落盘（见 senti/intraday.py 文件头）。"""
+        from . import intraday
+        try:
+            return intraday.get_intraday()
+        except Exception as e:
+            return {"error": f"{type(e).__name__}: {e}"}
+
     return app
 
 

@@ -361,3 +361,84 @@ def _load_delta_frames() -> tuple[dict[str, pd.DataFrame], dict]:
         d["date"] = pd.to_datetime(d["date"])
         frames[code] = d
     return frames, {"ok": len(frames)}
+
+
+# ---------------------------------------------------------------- 盘中快照（只读，不落盘）
+# 东财 push2 快照接口（本环境实测可达，见文件头注释）。
+# ⚠️ 仅供盘中预览（senti/intraday.py）：返回值只在内存里用，
+#    绝不写 index_long / stocks_delta / panels* —— 否则会违反「只追加」纪律。
+
+# board_key -> 东财指数代码（CSI2000 无快照，由个股快照等权合成，不在此表）
+EM_INDEX = {
+    "SH": "000001", "STAR": "000688", "CHINEXT": "399006",
+    "CSI1000": "000852", "HS300": "000300",
+}
+
+
+def _sina_hq(symbols: list[str]) -> dict[str, list[str]]:
+    """新浪 hq.sinajs.cn 实时快照。返回 symbol -> 字段数组。
+
+    ⚠️ 东财 push2 快照在本环境不稳定（2026-10-07 实测：通一次后持续
+    RemoteDisconnected，akshare 的 *_spot_em 封装同样被拒），新浪 hq 稳定可达。
+    必须带 Referer，否则 403。
+    """
+    import re
+    import requests
+    prep_env()
+    h = {"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"}
+    r = requests.get("https://hq.sinajs.cn/list=" + ",".join(symbols),
+                     headers=h, timeout=15)
+    r.raise_for_status()
+    out = {}
+    for m in re.finditer(r'hq_str_(\w+)="([^"]*)"', r.content.decode("gbk", "replace")):
+        if m.group(2):
+            out[m.group(1)] = m.group(2).split(",")
+    return out
+
+
+def fetch_index_snapshot() -> tuple[pd.DataFrame, str]:
+    """5 条官方指数的实时快照 + 快照时间戳。
+
+    返回 (df, ts)：df 列 board, close, open, high, low, volume, amount；
+    ts 形如 '09-30 15:00'（取各指数里最新的那个快照时间）。
+    新浪指数字段序：[0]名称 [1]今开 [2]昨收 [3]最新 [4]最高 [5]最低
+    [8]成交量 [9]成交额 [30]日期 [31]时间。
+    """
+    hq = _sina_hq(list(SINA_INDEX.values()))
+    rows, tss = [], []
+    for b, sym in SINA_INDEX.items():
+        f = hq.get(sym)
+        if not f or len(f) < 32:
+            raise RuntimeError(f"指数快照缺 {b}({sym})")
+        rows.append({"board": b, "close": float(f[3]), "open": float(f[1]),
+                     "high": float(f[4]), "low": float(f[5]),
+                     "volume": float(f[8]), "amount": float(f[9])})
+        tss.append(f"{f[30]} {f[31]}")
+    ts = max(tss)[:16]       # 'YYYY-MM-DD HH:MM'
+    return pd.DataFrame(rows), ts
+
+
+def fetch_stock_snapshot(codes: list[str], batch: int = 600) -> tuple[pd.DataFrame, str]:
+    """成分股实时快照（分批调用）：code, close, chg, prev, amount + 快照时间戳。
+
+    chg = 当日涨跌幅（小数）；prev = 昨收。停牌/无数据的票直接缺席（调用方跳过）。
+    新浪个股字段序：[1]今开 [2]昨收 [3]最新 [8]成交量(股) [9]成交额(元) [30]日期 [31]时间。
+    """
+    rows, tss = [], []
+    syms = [_sym(c) for c in codes]
+    for i in range(0, len(syms), batch):
+        hq = _sina_hq(syms[i:i + batch])
+        for sym, f in hq.items():
+            if len(f) < 32:
+                continue
+            close, prev = float(f[3]), float(f[2])
+            if close <= 0 or prev <= 0:
+                continue                    # 停牌
+            rows.append({"code": sym[2:], "close": close,
+                         "chg": close / prev - 1.0, "prev": prev,
+                         "amount": float(f[9])})
+            tss.append(f"{f[30]} {f[31]}")
+    if len(rows) < 3000:
+        raise RuntimeError(f"个股快照行数异常: {len(rows)}")
+    ts = max(tss)[:16] if tss else ""   # 'YYYY-MM-DD HH:MM'
+    return pd.DataFrame(rows), ts

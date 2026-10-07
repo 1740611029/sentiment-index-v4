@@ -20,6 +20,19 @@ A 股板块「恐贪情绪温度计」。给 6 个板块（大盘 / 科创板 / 
   J(SWING,SWING-2)=0.15），页面默认显示**三者并集**
   （189 次 / 70.9%，vs 原两模型并集 143 次 / 66.4% —— 信号 +32%、命中 +4.5pp）。
 
+**页面大白话叫法（2026-10-07 界面改版起，代码与文档仍用技术名）**：
+大机会=SENTI-1、小机会=三个小波段模型、**跌得深=SWING、跌势放缓=SWING-2、均线止跌=SWING-3、
+三个一起看=并集（默认 Tab）**；阈值→触发线、超卖→跌过头/跌到位、共振→几个板块一起提示。
+首屏结构：**今日结论横幅（右侧「盘中刷新」按钮）→ 6 张板块卡（三模型温度上卡，点击切图）→ 走势图（模型 Tab 四选）**，
+左侧分值卡/刻度条/最近信号行/信号源切换条已移除；
+小机会模式的 modestat 命中率 chip、合并视图 rnginfo 日期行、「三个模型各画一张图」图例条
+也已移除（2026-10-07 界面精简，大机会模式的保留）。
+
+**盘中刷新（2026-10-07 新增，`senti/intraday.py` + `/api/intraday`）**：
+按钮手动触发，新浪 hq 快照在内存里拼「临时今天」算四模型分值，板块卡下方显示预览值。
+⛔ **红线：盘中数据不落盘**（不写 index_long / stocks_delta / panels*），
+不产生信号、不进统计、不改 `web.ensure()` 版本机制。详见 `DELIVERY.md` §18.10。
+
 ---
 
 ## 1. 环境与命令
@@ -177,17 +190,18 @@ python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过�
 | 改了这里 | 还必须做 |
 |---|---|
 | `web/templates/index.html` 的 JS | 跑 `python _explore/smoke_page.py`（需先起服务） |
-| 主折线配色 | SVG 色值**硬编码在 `drawChart` 的 `P.push` 里**，CSS 改了没用，两处要同步；同步改 `_explore/smoke_page.py` 里硬编码的色值 |
+| 主折线配色 | SVG 色值**硬编码在 `drawChart`/`drawUnion` 的 `P.push` 里**，CSS 改了没用，两处要同步；同步改 `_explore/smoke_page.py` 里硬编码的色值（2026-10-07 起主线 `#63B3FF` 粗 2.2 / 跌势放缓 `#C9A2FF` / 均线止跌 `#FFB86B`，子图线粗 1.8；信号点统一由 `sigMarker()` 生成，烟测按 `class="sigmk"`/`class="halo"` 计数，**class 名勿改**） |
 | `senti/` 下任何 .py | 重启服务才生效 |
 | 模型 / 参数 / 确认层 | 同步更新 `DELIVERY.md`（含样本量与出处脚本编号）+ `README.md` 对应段落 |
 | 功能增删、页面交互、板块增减 | 同步更新 `README.md` |
 | `store.EVENT_GAP` / `cluster_events` | 同步更新 `DELIVERY.md` §14.5 + 页面图例文案 + `run.py stats` 的事件级表 |
 | 新增验证脚本 | 命名沿用 `dNN.py`（模型/回测类）或 `sNN.py`（小波段/因子搜索类），在 `DELIVERY.md` 脚本索引里登记 |
-| **新增小波段模型** | 照 `DELIVERY.md` §13 的清单走：`senti/swingN.py` + `data/panels_swingN/` + `store.py` 的 `union_events`/`summary`/`to_json` + 页面 `SRCS`/曲线/图例/悬停 + `run.py stats` + README/DELIVERY/本文件三处同步 |
-| 合并视图（`drawUnion` / `SUB3` / `.subchart`） | ⛔ **禁止改回「一张图叠三条曲线」** —— 三个模型刻度不可横比（`DELIVERY.md` §17）。改完跑 `smoke_page.py` 第 ④ 段（断言 3 张子图 / 3 条主折线 / 3 条阈值线 / 信号点计数 / 卡片 `big3` / 单刻度条隐藏） |
+| **新增小波段模型** | 照 `DELIVERY.md` §13 的清单走：`senti/swingN.py` + `data/panels_swingN/` + `store.py` 的 `union_events`/`summary`/`to_json` + 页面 `MTABS`/板块卡三行/曲线/图例/悬停 + `run.py stats` + README/DELIVERY/本文件三处同步 |
+| 合并视图（`drawUnion` / `SUB3` / `.subchart`，页面上叫「三个一起看」，是默认 Tab） | ⛔ **禁止改回「一张图叠三条曲线」** —— 三个模型刻度不可横比（`DELIVERY.md` §17）。改完跑 `smoke_page.py` 第 ④ 段（断言 3 张子图 / 3 条主折线 / 3 条触发线 / `sigmk` 信号点计数 / 板块卡含三模型最新值） |
 | `.subchart` 的 padding / border | `drawUnion` 里 `W = cvW − 26`（12px×2 padding + 1px×2 border），改 padding 必须同步改这个数，否则 viewBox 比容器宽、SVG 被缩到 ~98% |
 | `senti/fetch.py` / `run.py refresh` / 数据源 | 同步 `DELIVERY.md` §18 + `README.md` §7 + 本文件 §6。改完**必须实跑一次 refresh** 并复核「刷新前后统计数字完全一致」（纯追加的证据） |
 | 面板缓存失效逻辑（`store.clear_caches` / `rebuild_swing_panels` / `web.ensure`） | ⛔ 不要把 `swing*.build_and_cache()` 的 `force` 默认值改回 `False`；⛔ 不要去掉 `web.ensure()` 的 `built_at` 版本号判断（否则用户跑完 `更新数据.bat` 不重启服务看不到新数据） |
+| 盘中预览（`senti/intraday.py` / `/api/intraday` / `fetch.fetch_*_snapshot`） | ⛔ 盘中数据只准在内存，**禁止写盘**；⛔ 不要接进 `web.ensure()` 版本机制；改完页面部分跑 `smoke_page.py` 第 ⑤ 段；同步 `DELIVERY.md` §18.10 |
 
 ⚠️ **改 `index.html` 时不要并行发多个 Edit** —— 同一文件会互相覆盖，只有最后一条生效。
 
@@ -306,6 +320,13 @@ python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过�
     （2019-12 ~ 2023-01），过不了 2015-2016 关。**这两条是数据边界，不是模型问题。**
 26. **新成立基金份额（前半无有效样本）、期限利差（剂量反应非单调）→ 否决（`s34`）**。
     低频（月频 / 按成立日）数据对 7 天尺度天然无力，别在这上面花时间。
+27. **「目标日清单」式优化 = hindsight，别做（2026-10-07 回查，`DELIVERY.md` §19）**。
+    用户事后挑的 10 个阶段低点里 8 个已被现役信号覆盖（第一枪 8/8）；
+    漏掉的 2 个（科创板 2025-12-17、创业板 2026-04-08）是**浅回调 V 反**，
+    当天四模型读数全部远离超卖分位（SWING 55/82、SENTI-1 29/47）。
+    放松阈值硬抓：SWING-3 THR 10→18 信号翻倍、边际命中率 54.2% ≈ 基线 48.8%；
+    THR→27 信号 3.8 倍。**浅 V 反漏检是已知边界**（与「磨底不是底」互为镜像），
+    不是参数问题，不要再拿任何目标日清单来调阈值。
 
 **结论：现役仍是三个模型（SENTI-1 + SWING + SWING-2），一个没删，也没有新增。**
 四轮搜索全部收敛：价量因子（`s8`~`s16`）→ 第 4 模型候选（`s17`~`s22`）→
@@ -406,6 +427,6 @@ python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过�
 - [ ] 没有把第 4 节里任何一条捡回来
 - [ ] 新增/改动小波段模型 → **三个窗口**（近3年 / 近5.7年 / 全程）都报过，
       且**与现模型的 Jaccard 一并给出**（正交才有增量）
-- [ ] 页面加了曲线 → `_explore/smoke_page.py` 里对应的颜色/信号源清单也加上了
+- [ ] 页面加了曲线 → `_explore/smoke_page.py` 里对应的颜色/模型 Tab（`MTABS`）清单也加上了
 - [ ] 往同一张图上叠第二个模型之前，先确认**两者分值刻度可比**（算「50 分」在各自
       分布里的分位）。不可比就**分成多张图**，不要叠 —— 否则用户会误读成「某个模型更超卖」

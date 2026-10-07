@@ -12,13 +12,16 @@
   python _explore/smoke_page.py --port 8780
 
 ⚠️ 2026-09-23 起「合并」视图 = **三个模型各一张图**（drawUnion），不再叠三条曲线。
-   所以合并视图的校验改成「3 张子图、各自主折线/阈值线/信号点」，
-   单模型视图（回调底 / 动量拐点 / 均线拐点）才用原来的单折线校验。
+   所以合并视图的校验改成「3 张子图、各自主折线/触发线/信号点」，
+   单模型视图（跌得深 / 跌势放缓 / 均线止跌）才用原来的单折线校验。
+⚠️ 2026-10-07 界面改版（大白话仪表盘）：左侧分值卡/刻度条/最近信号行已移除，
+   改为「今日结论横幅 + 6 板块卡（三模型温度上卡）+ 模型 Tab」；
+   信号点统一由 sigMarker() 生成（class="sigmk" / 光环 class="halo"），按 class 计数。
 """
 import sys, os, re, json, subprocess, argparse, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-NODE = r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-2/node.exe"
+NODE = r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
 TMP = os.path.join(HERE, "_smoke_tmp")
 os.makedirs(TMP, exist_ok=True)
 
@@ -51,11 +54,12 @@ function expectN(dates,rg){
   let c=0; for(const d of dates) if(d>=cut) c++;
   return Math.min(Math.max(c,5), dates.length);
 }
-const MAIN_RE=/<path d="([^"]+)" fill="none" stroke="#5FA8FF" stroke-width="2"/;
+const MAIN_RE=/<path d="([^"]+)" fill="none" stroke="#63B3FF" stroke-width="2\.2"/;
 const cnt=(s,re)=>(s.match(re)||[]).length;
-const COL3={swing:'#5FA8FF',swing2:'#C9A2FF',swing3:'#FFB86B'};
+const COL3={swing:'#63B3FF',swing2:'#C9A2FF',swing3:'#FFB86B'};
 
-/* ---------- ② 大波段 SENTI-1 ---------- */
+/* ---------- ② 大机会 SENTI-1 ---------- */
+MODE='senti';
 for(const k of Object.keys(DATA)){
   cur=k;
   const line=[];
@@ -72,12 +76,12 @@ for(const k of Object.keys(DATA)){
     const okP=(pts===exp), okX=(Math.abs(lastX-782)<0.6);   // 末点应贴住绘图区右边界 62+720
     line.push(rg+':'+pts+(okP?'':'(应'+exp+')')+(okX?'':'(末点x='+lastX+')'));
     if(!okP||!okX) bad2++;
-    /* 等级标记：三角形数 == 窗口内信号数；光环数 == 窗口内 A 级数 */
+    /* 等级标记：sigmk 三角形数 == 窗口内信号数；halo 光环数 == 窗口内 A 级数 */
     const [w0,w1]=winIdx(DATA[k]);
     const d0=DATA[k].dates[w0], d1=DATA[k].dates[w1];
     const inW=DATA[k].bottom.filter(e=>e.date>=d0&&e.date<=d1);
-    const nTri=cnt(h,/l-6\.5 /g);
-    const nHalo=cnt(h,/r="9\.5"/g);
+    const nTri=cnt(h,/class="sigmk"/g);
+    const nHalo=cnt(h,/class="halo"/g);
     const nA=inW.filter(e=>e.grade==='A').length;
     if(nTri!==inW.length){console.log('  !! '+k+' '+rg+' 信号标记 '+nTri+' != 窗口信号 '+inW.length);bad2++;}
     if(nHalo!==nA){console.log('  !! '+k+' '+rg+' A级光环 '+nHalo+' != A级信号 '+nA);bad2++;}
@@ -86,23 +90,20 @@ for(const k of Object.keys(DATA)){
   }
   console.log('  '+k.padEnd(9)+line.join('  '));
 }
-/* 「20日平滑」已移除：图上必须永远是原始分值，与左侧卡片同一个值 */
-RNG='all'; drawChart();
-{
-  const info=document.getElementById('rnginfo').innerHTML||'';
-  const ok=/与左侧卡片同一个值/.test(info) && !/20日均/.test(info);
-  console.log('  口径一致性: '+(ok?'✔ 图上为原始分值，与卡片同一个值':'✘ 图上口径与卡片不一致'));
-  if(!ok) bad2++;
-}
-/* 卡片「最近信号」行（信号表已移除，这行是唯一的历史回溯入口） */
+/* 首屏三要素：今日结论横幅 + 6 板块卡 + 大白话说明，任何板块选中时都必须正常渲染 */
 let badLs=0;
 for(const k of Object.keys(DATA)){
   cur=k; render();
-  const t=document.getElementById('lsig').innerHTML||'';
-  if(!/级/.test(t)||/undefined|NaN/.test(t)){
-    console.log('  !! '+k+' 最近信号行异常: '+t.slice(0,90));badLs++;}
+  const bn=document.getElementById('banner').innerHTML||'';
+  const bd=document.getElementById('boards').innerHTML||'';
+  const gb=document.getElementById('gbody').innerHTML||'';
+  if(!/扫描结果/.test(bn)||/undefined|NaN/.test(bn)){
+    console.log('  !! '+k+' 今日结论横幅异常: '+bn.slice(0,90));badLs++;}
+  if(cnt(bd,/class="bd/g)!==6||/undefined|NaN/.test(bd)){
+    console.log('  !! '+k+' 板块卡数量异常或含 undefined/NaN');badLs++;}
+  if(/undefined|NaN/.test(gb)){console.log('  !! '+k+' 大白话说明含 undefined/NaN');badLs++;}
 }
-if(badLs===0) console.log('  最近信号行: 6 个板块均已渲染 ✔');
+if(badLs===0) console.log('  横幅/板块卡/说明: 6 个板块均已渲染 ✔');
 bad2+=badLs;
 console.log('\n  '+(bad2===0?'✔ SENTI-1 冒烟通过':'✘ SENTI-1 存在 '+bad2+' 处问题'));
 
@@ -128,12 +129,12 @@ for(const k of Object.keys(DATA)){
     line.push(rg+':'+pts);
   }
   render();
-  const ls=document.getElementById('lsig').innerHTML||'';
+  const bn=document.getElementById('banner').innerHTML||'';
   const ms=document.getElementById('modestat').innerHTML||'';
   const lg=document.getElementById('legend').innerHTML||'';
   const gb=document.getElementById('gbody').innerHTML||'';
-  if(/undefined|NaN/.test(ls+ms+lg+gb)){console.log('  !! '+k+' SWING 文案含 undefined/NaN');bad3++;}
-  if(!/SWING|超卖/.test(lg)){console.log('  !! '+k+' 图例未切到 SWING');bad3++;}
+  if(/undefined|NaN/.test(bn+ms+lg+gb)){console.log('  !! '+k+' SWING 文案含 undefined/NaN');bad3++;}
+  if(!/跌得深/.test(lg)){console.log('  !! '+k+' 图例未切到小波段（跌得深）');bad3++;}
   console.log('  '+k.padEnd(9)+line.join('  '));
 }
 /* 目标日期硬约束：科创板必须能标出 2026-08-03 与 2026-09-14 */
@@ -147,8 +148,8 @@ for(const k of Object.keys(DATA)){
 }
 console.log('\n  '+(bad3===0?'✔ SWING 单模型冒烟通过':'✘ SWING 单模型存在 '+bad3+' 处问题'));
 
-/* ---------- ④ 信号源四选：合并（三张图）/ 回调底 / 动量拐点 / 均线拐点 ---------- */
-console.log('\n④ 小波段信号源四选（合并 / 回调底 / 动量拐点 / 均线拐点）');
+/* ---------- ④ 模型 Tab 四选：三个一起看（三张图）/ 跌得深 / 跌势放缓 / 均线止跌 ---------- */
+console.log('\n④ 小波段模型 Tab 四选（三个一起看 / 跌得深 / 跌势放缓 / 均线止跌）');
 let bad4=0;
 for(const s of ['union','swing','swing2','swing3']){
   SRC=s;
@@ -158,39 +159,37 @@ for(const s of ['union','swing','swing2','swing3']){
     const h=document.getElementById('plot').innerHTML||'';
     const ms=document.getElementById('modestat').innerHTML||'';
     const lg=document.getElementById('legend').innerHTML||'';
-    const ls=document.getElementById('lsig').innerHTML||'';
+    const bd=document.getElementById('boards').innerHTML||'';
     const info=document.getElementById('rnginfo').innerHTML||'';
-    if(/undefined|NaN/.test(h+ms+lg+ls+info)){console.log('  !! '+s+' '+k+' 含 undefined/NaN');bad++;}
+    if(/undefined|NaN/.test(h+ms+lg+bd+info)){console.log('  !! '+s+' '+k+' 含 undefined/NaN');bad++;}
     if(s==='union'){
-      /* 三张子图，各自一条主折线 + 一条阈值线 + 自己的信号点 */
+      /* 三张子图，各自一条主折线 + 一条触发线 + 自己的信号点 */
       const nsvg=cnt(h,/<svg /g);
       if(nsvg!==3){console.log('  !! union '+k+' 子图数 '+nsvg+' != 3');bad++;}
       if(cnt(h,/class="subchart"/g)!==3){console.log('  !! union '+k+' 缺 subchart 容器');bad++;}
-      if(cnt(h,/入场阈值/g)!==3){console.log('  !! union '+k+' 阈值线数 '+cnt(h,/入场阈值/g)+' != 3');bad++;}
+      if(cnt(h,/（跌破就提示）/g)!==3){console.log('  !! union '+k+' 触发线数 '+cnt(h,/（跌破就提示）/g)+' != 3');bad++;}
       for(const key of ['swing','swing2','swing3']){
         const re=new RegExp('stroke="'+COL3[key]+'" stroke-width="1\\.8"');
         if(!re.test(h)){console.log('  !! union '+k+' 缺 '+key+' 主折线');bad++;}
       }
-      if(!/三个模型各自一张图/.test(info)){console.log('  !! union '+k+' 窗口信息未说明三张图');bad++;}
-      if(!/刻度不同/.test(lg)){console.log('  !! union '+k+' 图例未说明刻度不可比');bad++;}
-      /* 信号点：src='both' 的事件三张图都画 → 期望三角形数 = Σ(1 or 3) */
+      /* 2026-10-07 起小机会模式 rnginfo/modestat 与「三个模型各画一张图」图例条已移除（用户要求精简） */
+      if(/三个模型各自一张图|三个模型各画一张图/.test(info+lg)){console.log('  !! union '+k+' 已移除的口径提示又出现了');bad++;}
+      if(/闭眼买/.test(ms)){console.log('  !! union '+k+' 小机会 modestat 应已移除');bad++;}
+      /* 信号点：src='both' 的事件三张图都画 → 期望 sigmk 数 = Σ(1 or 3) */
       const [w0,w1]=winIdx(DATA[k]);
       const d0=DATA[k].dates[w0], d1=DATA[k].dates[w1];
       const inW=(DATA[k].union_events||[]).filter(e=>e.date>=d0&&e.date<=d1);
       const expTri=inW.reduce((a,e)=>a+((e.src==='both')?3:1),0);
-      const nTri=cnt(h,/l-6 /g);
+      const nTri=cnt(h,/class="sigmk"/g);
       if(nTri!==expTri){console.log('  !! union '+k+' 信号点 '+nTri+' != 期望 '+expTri);bad++;}
-      /* 左侧卡片：三个最新值 + 隐藏单刻度条 */
-      const sv=document.getElementById('sval');
-      if(sv.className!=='big3'){console.log('  !! union '+k+' 卡片未切成三值布局');bad++;}
-      if(!/回调底/.test(sv.innerHTML)||!/动量拐点/.test(sv.innerHTML)||!/均线拐点/.test(sv.innerHTML)){
-        console.log('  !! union '+k+' 卡片缺某个模型的最新值');bad++;}
-      if(document.getElementById('barscale').style.display!=='none'){
-        console.log('  !! union '+k+' 单刻度条未隐藏');bad++;}
+      /* 板块卡：三个模型的最新值都要上卡 */
+      if(!/跌得深/.test(bd)||!/跌势放缓/.test(bd)||!/均线止跌/.test(bd)){
+        console.log('  !! union '+k+' 板块卡缺某个模型的最新值');bad++;}
       n+=inW.length;
     }else{
-      if(!MAIN_RE.test(h)){console.log('  !! '+s+' '+k+' 找不到主折线');bad++;}
       if(cnt(h,/<svg /g)!==1){console.log('  !! '+s+' '+k+' 单模型视图应有 1 张图');bad++;}
+      const re1=new RegExp('stroke="'+COL3[s]+'" stroke-width="2\\.2"');
+      if(!re1.test(h)){console.log('  !! '+s+' '+k+' 找不到主折线');bad++;}
       n+=(DATA[k][s+'_events']||[]).length;
     }
   }
@@ -199,13 +198,46 @@ for(const s of ['union','swing','swing2','swing3']){
   bad4+=bad;
 }
 SRC='union';
-/* 信号源名字的通俗解释必须存在（用户反馈「看不懂」才补的，别被后续改动删掉）。
-   注意 stub 的 appendChild 是空函数、也没有 querySelector，所以直接读 srcHint.innerHTML。 */
-const shTxt=((typeof srcHint!=='undefined' && srcHint.innerHTML)||'');
-if(!/回调底/.test(shTxt)||!/动量拐点/.test(shTxt)||!/均线拐点/.test(shTxt)){
-  console.log('  !! 信号源缺少通俗解释（需同时含「回调底」「动量拐点」「均线拐点」）');bad4++;}
-console.log('\n  '+(bad4===0?'✔ 信号源四选冒烟通过':'✘ 信号源四选存在 '+bad4+' 处问题'));
-process.exit((bad2+bad3+bad4)?1:0);
+/* 大白话说明必须同时讲清三个模型（用户反馈「看不懂」才改成大白话的，别被后续改动删掉） */
+MODE='swing'; render();
+const shTxt=document.getElementById('gbody').innerHTML||'';
+if(!/跌得深/.test(shTxt)||!/跌势放缓/.test(shTxt)||!/均线止跌/.test(shTxt)){
+  console.log('  !! 大白话说明缺少三个模型的解释（需同时含「跌得深」「跌势放缓」「均线止跌」）');bad4++;}
+console.log('\n  '+(bad4===0?'✔ 模型 Tab 四选冒烟通过':'✘ 模型 Tab 四选存在 '+bad4+' 处问题'));
+
+/* ---------- ⑤ 盘中刷新：盘中区常显；数值只在 showUntil 前显示，其余一律「—」 ---------- */
+console.log('\n⑤ 盘中刷新按钮与盘中区');
+let bad5=0;
+MODE='swing'; SRC='union'; INTRA=null; render();
+let bd5=document.getElementById('boards').innerHTML||'';
+if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 未刷新时盘中区也应常显（6 卡）');bad5++;}
+if(!/盘中（未刷新）/.test(bd5)||!/—/.test(bd5)){console.log('  !! 未刷新时应显示占位符 —');bad5++;}
+/* 交易时段点击（showUntil=未来）→ 显示数值 */
+INTRA={ts:'10-07 14:32',live:true,clickedDay:todayStr(),showUntil:Date.now()+3600e3,boards:{}};
+for(const k of Object.keys(DATA)) INTRA.boards[k]={senti:21.8,swing:62.3,swing2:38.9,swing3:23.0};
+render();
+bd5=document.getElementById('boards').innerHTML||'';
+if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 小机会模式盘中区数 '+cnt(bd5,/class="intr"/g)+' != 6');bad5++;}
+if(!/盘中 10-07 14:32/.test(bd5)){console.log('  !! 盘中区缺时间戳');bad5++;}
+if(!/62.3/.test(bd5)||!/38.9/.test(bd5)||!/23.0/.test(bd5)){console.log('  !! 小机会盘中区缺某个模型值');bad5++;}
+if(/undefined|NaN/.test(bd5)){console.log('  !! 盘中区含 undefined/NaN');bad5++;}
+MODE='senti'; render();
+bd5=document.getElementById('boards').innerHTML||'';
+if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 大机会模式盘中区数 '+cnt(bd5,/class="intr"/g)+' != 6');bad5++;}
+if(!/21.8/.test(bd5)){console.log('  !! 大机会盘中区缺 SENTI-1 值');bad5++;}
+/* 收盘后点击（live=false → showUntil=0）→ 显示「—」并标「已收盘」 */
+MODE='swing'; INTRA.showUntil=0; render();
+bd5=document.getElementById('boards').innerHTML||'';
+if(/62.3/.test(bd5)){console.log('  !! 收盘后点击盘中值应显示 —');bad5++;}
+if(!/盘中（已收盘）/.test(bd5)){console.log('  !! 收盘后点击应标「已收盘」');bad5++;}
+/* 跨天（showUntil 已过期、clickedDay 是昨天）→ 回到「—」未刷新态 */
+INTRA.showUntil=Date.now()-1; INTRA.clickedDay='2000-01-01'; render();
+bd5=document.getElementById('boards').innerHTML||'';
+if(/62.3/.test(bd5)){console.log('  !! 跨天后盘中值应清空为 —');bad5++;}
+if(!/盘中（未刷新）/.test(bd5)){console.log('  !! 跨天后盘中区标题应回到未刷新态');bad5++;}
+INTRA=null;
+console.log('  '+(bad5===0?'✔ 盘中刷新冒烟通过':'✘ 盘中刷新存在 '+bad5+' 处问题'));
+process.exit((bad2+bad3+bad4+bad5)?1:0);
 """
 
 
@@ -233,6 +265,8 @@ def main():
     scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
     if not scripts:
         print("  ✘ 页面里没有 <script> 段"); return 2
+    if 'id="intrabtn"' not in html:
+        print("  ✘ 页面缺少「盘中刷新」按钮（id=intrabtn）"); return 1
     js = scripts[-1]
     js_path = os.path.join(TMP, "page.js")
     with open(js_path, "w", encoding="utf-8") as f:
