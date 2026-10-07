@@ -51,28 +51,6 @@ def load_bna_pct() -> pd.Series | None:
         return None
 
 
-def load_margin_pct() -> pd.Series | None:
-    """沪深融资余额的 250 日因果分位（0~100，越大 = 杠杆越挤满）。
-
-    与破净率严格对称：
-      底部要「杠杆已出清」→ 看破净率分位（高 = 投降）
-      顶部要「杠杆已挤满」→ 看融资余额分位（高 = 狂热）
-    2015 年 6 月那个真正的顶，融资余额 2.1 万亿是历史极值，正是分位能吃到的信号。
-
-    时序：两融数据次日早上才公布 → 整体 shift(1)。
-    抓不到时返回 None。
-    """
-    p = os.path.join(MKT_DIR, "margin.parquet")
-    if not os.path.exists(p):
-        return None
-    try:
-        s = pd.read_parquet(p).set_index("date")["margin"].astype(float)
-        s = s[~s.index.duplicated(keep="last")].sort_index().shift(1)
-        return s.rolling(250, min_periods=120).rank(pct=True) * 100.0
-    except Exception:
-        return None
-
-
 # ---------------------------------------------------------------- 指数
 def load_index(board_key: str) -> pd.DataFrame:
     """返回 date/open/high/low/close/volume/amount，按日期升序。

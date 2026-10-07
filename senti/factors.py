@@ -6,7 +6,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from . import config as C
 from . import data
 
 
@@ -72,34 +71,3 @@ def build_board_raw(board_key: str, stock_ind: pd.DataFrame | None = None) -> pd
     df["ma5"] = close.rolling(5).mean()
 
     return df.drop(columns=["amt", "n"])
-
-
-def rolling_z(s: pd.Series, window: int = None, min_periods: int = None,
-              clip: float = None) -> pd.Series:
-    """滚动 z-score；历史不足时用 expanding 兜底（仅用过去数据）。"""
-    cfg = C.MODEL
-    window = window or cfg["z_window"]
-    min_periods = min_periods or cfg["z_min_periods"]
-    clip = clip if clip is not None else cfg["z_clip"]
-
-    mu = s.rolling(window, min_periods=min_periods).mean()
-    sd = s.rolling(window, min_periods=min_periods).std()
-    # 兜底：开头用 expanding（同样只用历史）
-    mu_e = s.expanding(min_periods=min_periods).mean()
-    sd_e = s.expanding(min_periods=min_periods).std()
-    mu = mu.fillna(mu_e)
-    sd = sd.fillna(sd_e)
-    z = (s - mu) / sd.replace(0.0, np.nan)
-    return z.clip(-clip, clip)
-
-
-def to_zpanel(raw: pd.DataFrame) -> pd.DataFrame:
-    """原始因子 → z-score 面板（vol 已按反向处理）。"""
-    z = pd.DataFrame(index=raw.index)
-    for k in C.WEIGHTS:
-        col = raw["amt_pct"] if k == "amt" else raw[k]
-        zz = rolling_z(col.astype(float))
-        if C.INVERT.get(k):
-            zz = -zz
-        z[k] = zz
-    return z
