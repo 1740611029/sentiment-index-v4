@@ -1,7 +1,9 @@
 """盘中预览：手动触发的「假设现在收盘」分值计算。
 
 红线（铁律八）：本模块只在内存里拼「临时今天」，**绝不写 data/ 下任何文件**。
-盘中值只是预览：不产生信号、不进事件统计、不触发冷却。
+盘中值只是预览：不进事件统计、不触发冷却、不写 store.events。
+「若现在收盘是否触发」的判定（trig / confirmed）同样只是预览标记：
+防抖状态只在本进程内存，重启清零；文案用「将触发 / 已达触发线」，不是正式信号。
 
 口径：与正式面板完全相同的模型公式与因果锚 —— 直接复用
 model / swing / swing2 / swing3 的 build()，区别只在注入的数据：
@@ -23,7 +25,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import config as C, data, factors, fetch, model, swing, swing2, swing3
+from . import config as C, data, factors, fetch, model, store, swing, swing2, swing3
 
 TTL_SEC = 60                  # 进程内缓存：60 秒内重复请求直接复用
 STOCK_TAIL = 60               # 个股反推窗口（ma60 / 60 日新高新低需要 60 天）
@@ -31,6 +33,7 @@ STOCK_TAIL = 60               # 个股反推窗口（ma60 / 60 日新高新低�
 _cache = {"at": 0.0, "payload": None}
 _lock = threading.Lock()
 _stock_ind = {"mtime": 0.0, "df": None}
+_prev_trig: dict[tuple[str, str], bool] = {}   # 防抖：上次真实计算的触发判定，重启清零
 
 
 def _load_stock_ind() -> pd.DataFrame:
@@ -138,6 +141,37 @@ def _today_stock_rows(stock_ind: pd.DataFrame, stk_snap: pd.DataFrame,
     return out[ok].reset_index(drop=True)
 
 
+def _scan_trig(s: np.ndarray, kind: str) -> bool:
+    """逐日模拟扫描分值序列（最后一行 = 临时今天），返回最后一行是否触发（含冷却）。
+
+    入场条件与各模型 events() 完全一致，只是不算未来收益、不截断末尾：
+      swing / swing2: s[i] <= THR
+      swing3:         s[i] <= THR 且 s[i] > s[i-1]（回升确认）
+      senti:          s[i-1] <= ENTRY_THR 且 s[i] > s[i-1]（昨日恐慌 + 今日掉头）
+    冷却按面板行距计（交易日）：swing 系 COOL=4，senti COOL_TRADING=20。
+    """
+    thr = {"swing": swing.THR, "swing2": swing2.THR, "swing3": swing3.THR}.get(kind)
+    cool = store.COOL_TRADING if kind == "senti" else swing.COOL
+    n = len(s)
+    last = -10 ** 9
+    fired = False
+    for i in range(1, n):
+        if np.isnan(s[i]):
+            continue
+        prev = s[i - 1]
+        if kind == "senti":
+            ok = not np.isnan(prev) and prev <= store.ENTRY_THR and s[i] > prev
+        elif kind == "swing3":
+            ok = s[i] <= thr and not np.isnan(prev) and s[i] > prev
+        else:
+            ok = s[i] <= thr
+        if ok and i - last >= cool:
+            last = i
+            if i == n - 1:
+                fired = True
+    return fired
+
+
 def _compute() -> dict:
     idx_snap, ts_i = fetch.fetch_index_snapshot()
     stk_snap, ts_s = fetch.fetch_stock_snapshot(fetch.needed_codes())
@@ -154,25 +188,43 @@ def _compute() -> dict:
     raw_memo: dict[str, pd.DataFrame] = {}
     data.load_index = lambda b: frames[b]
     factors.build_board_raw = lambda b, s=None: raw_memo.setdefault(b, orig_raw(b, stock_ind))
+    col = {"senti": "score", "swing": "swing", "swing2": "swing2", "swing3": "swing3"}
     try:
         boards: dict[str, dict] = {}
         for b in C.BOARD_ORDER:
             row = {}
             fns = {
-                "senti": lambda: model.build(b, stock_ind)["score"].iloc[-1],
-                "swing": lambda: swing.build(b, stock_ind)["swing"].iloc[-1],
-                "swing2": lambda: swing2.build(b)["swing2"].iloc[-1],
-                "swing3": lambda: swing3.build(b)["swing3"].iloc[-1],
+                "senti": lambda: model.build(b, stock_ind),
+                "swing": lambda: swing.build(b, stock_ind),
+                "swing2": lambda: swing2.build(b),
+                "swing3": lambda: swing3.build(b),
             }
             for k, fn in fns.items():
                 try:
-                    v = float(fn())
-                    row[k] = round(v, 1) if np.isfinite(v) else None
+                    s = fn()[col[k]].to_numpy(dtype=float)
+                    v = float(s[-1])
+                    ok = np.isfinite(v)
+                    row[k] = {"v": round(v, 1) if ok else None,
+                              "trig": bool(_scan_trig(s, k)) if ok else False}
                 except Exception:
-                    row[k] = None        # 单模型失败不影响其它模型
+                    row[k] = {"v": None, "trig": False}   # 单模型失败不影响其它模型
             boards[b] = row
     finally:
         data.load_index, factors.build_board_raw = orig_index, orig_raw
+
+    # SENTI-1 盘中共振数：6 板块盘中 senti 值 ≤ 0 的个数（与 store.resonance 同口径）
+    reso_n = sum(1 for r in boards.values()
+                 if r["senti"]["v"] is not None and r["senti"]["v"] <= store.ENTRY_THR)
+    for r in boards.values():
+        r["senti"]["reso"] = reso_n
+
+    # 防抖：confirmed = 上次真实计算也触发 AND 本次触发；随后本次成为新的「上次」
+    for b, r in boards.items():
+        for k, cell in r.items():
+            cell["confirmed"] = bool(_prev_trig.get((b, k))) and cell["trig"]
+    _prev_trig.clear()
+    _prev_trig.update({(b, k): cell["trig"] for b, r in boards.items()
+                       for k, cell in r.items()})
 
     # live = 点击时正处在交易时段（快照日=今天 且 09:25~15:05）。
     # 节假日/收盘后点击为 False，前端据此一直显示占位符「—」。

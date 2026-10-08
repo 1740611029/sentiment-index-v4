@@ -24,7 +24,7 @@
 import sys, os, re, json, subprocess, argparse, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-NODE = r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
+NODE = r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe"
 TMP = os.path.join(HERE, "_smoke_tmp")
 os.makedirs(TMP, exist_ok=True)
 
@@ -215,29 +215,40 @@ MODE='swing'; SRC='union'; INTRA=null; render();
 let bd5=document.getElementById('boards').innerHTML||'';
 if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 未刷新时盘中区也应常显（6 卡）');bad5++;}
 if(!/盘中（未刷新）/.test(bd5)||!/—/.test(bd5)){console.log('  !! 未刷新时应显示占位符 —');bad5++;}
-/* 交易时段点击（showUntil=未来）→ 显示数值 */
+/* 交易时段点击（showUntil=未来）→ 显示数值与触发预览标记（新结构 {v,trig,confirmed}） */
 INTRA={ts:'10-07 14:32',live:true,clickedDay:todayStr(),showUntil:Date.now()+3600e3,boards:{}};
-for(const k of Object.keys(DATA)) INTRA.boards[k]={senti:21.8,swing:62.3,swing2:38.9,swing3:23.0};
+for(const k of Object.keys(DATA)) INTRA.boards[k]={
+  senti:{v:21.8,trig:false,confirmed:false,reso:0},
+  swing:{v:62.3,trig:true,confirmed:false},
+  swing2:{v:38.9,trig:false,confirmed:false},
+  swing3:{v:23.0,trig:true,confirmed:true}};
+INTRA.boards[Object.keys(DATA)[0]].senti={v:-2.5,trig:true,confirmed:true,reso:4};
 render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 小机会模式盘中区数 '+cnt(bd5,/class="intr"/g)+' != 6');bad5++;}
 if(!/盘中 10-07 14:32/.test(bd5)){console.log('  !! 盘中区缺时间戳');bad5++;}
 if(!/62.3/.test(bd5)||!/38.9/.test(bd5)||!/23.0/.test(bd5)){console.log('  !! 小机会盘中区缺某个模型值');bad5++;}
 if(/undefined|NaN/.test(bd5)){console.log('  !! 盘中区含 undefined/NaN');bad5++;}
+if(cnt(bd5,/○ 已达触发线/g)!==6){console.log('  !! 单样本态应为 6 个「○ 已达触发线」，实得 '+cnt(bd5,/○ 已达触发线/g));bad5++;}
+if(cnt(bd5,/● 若现在收盘将触发/g)!==6){console.log('  !! 确认态应为 6 个「● 若现在收盘将触发」，实得 '+cnt(bd5,/● 若现在收盘将触发/g));bad5++;}
 MODE='senti'; render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 大机会模式盘中区数 '+cnt(bd5,/class="intr"/g)+' != 6');bad5++;}
-if(!/21.8/.test(bd5)){console.log('  !! 大机会盘中区缺 SENTI-1 值');bad5++;}
-/* 收盘后点击（live=false → showUntil=0）→ 显示「—」并标「已收盘」 */
+if(!/21.8/.test(bd5)||!/-2.5/.test(bd5)){console.log('  !! 大机会盘中区缺 SENTI-1 值');bad5++;}
+if(cnt(bd5,/● 若现在收盘将触发/g)!==1){console.log('  !! 大机会模式确认标记应只有 1 个');bad5++;}
+if(!/· 共振 4/.test(bd5)){console.log('  !! 大机会确认态应附「· 共振 N」');bad5++;}
+/* 收盘后点击（live=false → showUntil=0）→ 显示「—」并标「已收盘」，标记随数值一起消失 */
 MODE='swing'; INTRA.showUntil=0; render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(/62.3/.test(bd5)){console.log('  !! 收盘后点击盘中值应显示 —');bad5++;}
 if(!/盘中（已收盘）/.test(bd5)){console.log('  !! 收盘后点击应标「已收盘」');bad5++;}
+if(/将触发|已达触发线/.test(bd5)){console.log('  !! 收盘后触发标记应随数值一起消失');bad5++;}
 /* 跨天（showUntil 已过期、clickedDay 是昨天）→ 回到「—」未刷新态 */
 INTRA.showUntil=Date.now()-1; INTRA.clickedDay='2000-01-01'; render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(/62.3/.test(bd5)){console.log('  !! 跨天后盘中值应清空为 —');bad5++;}
 if(!/盘中（未刷新）/.test(bd5)){console.log('  !! 跨天后盘中区标题应回到未刷新态');bad5++;}
+if(/将触发|已达触发线/.test(bd5)){console.log('  !! 跨天后触发标记应消失');bad5++;}
 INTRA=null;
 console.log('  '+(bad5===0?'✔ 盘中刷新冒烟通过':'✘ 盘中刷新存在 '+bad5+' 处问题'));
 

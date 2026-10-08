@@ -92,6 +92,8 @@
   .bd .intr{margin-top:5px;padding-top:5px;border-top:1px dashed var(--bd);
       font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .bd .intr b{font-weight:650;font-size:12.5px}
+  .bd .intr i{font-style:normal;font-size:10.5px;font-weight:650;white-space:nowrap}
+  .bd .intr .itr{color:#9AABBF}
 
   /* ---------- 雷达：谁离出提示最近（只比分差，不横向比高低） ---------- */
   .radar{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);
@@ -341,7 +343,7 @@ mtabsEl.addEventListener('click',e=>{
 /* ---------- 时间范围 ---------- */
 const RANGES=[['7d','近7天',7],['1m','近1个月',30],['3m','近3个月',91],
               ['6m','近半年',182],['1y','近1年',365],['all','全部',null]];
-let RNG='all';
+let RNG='6m';
 const rngEl=$('rng');
 rngEl.innerHTML=RANGES.map(([k,lab])=>
   `<button data-k="${k}" class="${k===RNG?'on':''}">${lab}</button>`).join('');
@@ -463,17 +465,27 @@ function renderBoards(){
               <span class="tr" style="flex:1"><i style="width:${pct}%;background:${col};opacity:.85"></i><u style="left:${tpct}%"></u></span>
               <span class="hit">${hit?'● 已达':''}</span></div>`;
     }
-    /* 盘中预览区：常显。数值只在 showUntil 之前显示（= 交易时段点击后~当天15:05）；
-       收盘后/节假日点击、跨天、未刷新 → 显示「—」 */
+    /* 盘中预览区：常显。数值与触发预览标记只在 showUntil 之前显示（= 交易时段点击后~当天15:05）；
+       收盘后/节假日点击、跨天、未刷新 → 显示「—」。标记随数值一起出现/过期，无独立生命周期。 */
     const iv=(INTRA&&INTRA.boards&&INTRA.showUntil&&Date.now()<INTRA.showUntil)
       ?INTRA.boards[bk.key]:null;
     const v=iv||{};
-    const pv=(x,c)=>x==null?'<b style="color:var(--dim)">—</b>':`<b style="color:${c}">${fmt(x,1)}</b>`;
+    /* 单元格：分值 + 触发预览标记。确认态=连续两次刷新都触发（模型色）；
+       单样本=本次触发但未确认（灰）。都只是预览，不是提示。 */
+    const cell=(x,c)=>{
+      if(!x||x.v==null) return '<b style="color:var(--dim)">—</b>';
+      const mk=x.confirmed?`<i class="icf" style="color:${c}">● 若现在收盘将触发</i>`
+             :x.trig?'<i class="itr">○ 已达触发线</i>':'';
+      return `<b style="color:${c}">${fmt(x.v,1)}</b>${mk}`;
+    };
     const ilab=iv?('盘中 '+INTRA.ts)
       :(INTRA&&INTRA.clickedDay===todayStr()?'盘中（已收盘）':'盘中（未刷新）');
-    rows+= MODE==='swing'
-      ? `<div class="intr"><span>${ilab}</span>${pv(v.swing,'#63B3FF')}<span>/</span>${pv(v.swing2,'#C9A2FF')}<span>/</span>${pv(v.swing3,'#FFB86B')}</div>`
-      : `<div class="intr"><span>${ilab}</span>${pv(v.senti,'#7FB6FF')}</div>`;
+    if(MODE==='swing'){
+      rows+=`<div class="intr"><span>${ilab}</span>${cell(v.swing,'#63B3FF')}<span>/</span>${cell(v.swing2,'#C9A2FF')}<span>/</span>${cell(v.swing3,'#FFB86B')}</div>`;
+    }else{
+      const rs=v.senti&&v.senti.confirmed?`<i class="icf" style="color:#7FB6FF">· 共振 ${v.senti.reso}</i>`:'';
+      rows+=`<div class="intr"><span>${ilab}</span>${cell(v.senti,'#7FB6FF')}${rs}</div>`;
+    }
     return `<div class="bd${bk.key===cur?' sel':''}${sig?' sig':''}" data-k="${bk.key}" title="${B.desc||''}">
       <div class="hd"><span class="nm">${B.name}</span>${badge}</div>${rows}</div>`;
   }).join('');
