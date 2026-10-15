@@ -144,8 +144,10 @@ python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑�
 
 ### 新机器部署（从零开始）
 
-仓库已自带不可再生的种子数据（`data/cache/index_long/`、`stocks_hist/`、`stocks_delta/`、
-`market/` 与成分股清单 `data/universe/`，共约 280MB），所以 **`git clone` 后数据与本机一致**：
+仓库已自带不可再生的种子数据（`data/cache/index_long/`、`stocks_hist/`、`market/`
+与成分股清单 `data/universe/`，共约 243MB）。`stocks_delta/`（个股增量）**不入库**，
+由各机独立 `refresh` 再生，所以 `git clone` 后需先跑一次 `更新数据.bat` 生成它；
+种子一致 + 同一数据源，最终分值跨机一致：
 
 1. **安装 Python 3.x**，安装时勾选 **「Add python.exe to PATH」**（仅需装一次）。
 2. 双击 **`首次初始化.bat`**：自动建项目内 `.venv` → 按 `requirements.txt` 装依赖
@@ -154,9 +156,9 @@ python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑�
 3. 之后日常双击 **`启动网站.bat`**（开页面）和 **`更新数据.bat`**（联网刷新）即可。
 
 > ⚠️ `更新数据.bat`/`refresh` 需要能访问新浪行情接口（代理环境可能被拦，脚本已自动清代理）。
-> ⚠️ `refresh` 之后 `stocks_delta/` 里的 parquet 会显示为 git 未提交修改。两种用法都成立：
-> 一是定期 `git add data/cache/stocks_delta` 提交，让所有机器同步到同一数据；
-> 二是各机器独立更新、互不干扰（种子一致，历史段谁都改不了，见下节与 `DELIVERY.md` 第 18 节）。
+> ⚠️ `stocks_delta/` 已被 `.gitignore` 忽略（设计如此，各机独立再生），`refresh` 后不会显示为未提交修改；
+> 其他机器 `git clone` 后该目录为空，首次必须跑一次 `更新数据.bat` 抓取增量。种子一致 + 同一数据源，
+> 最终分值跨机一致（见 `DELIVERY.md` 第 18 节）。
 
 > ⚠️ **想更新到最新交易日，必须用 `refresh`。**
 > `update` / `build` 都**不联网** —— 数据链的源头是本地缓存，重算一万遍日期也不会前进
@@ -349,9 +351,9 @@ D:\情绪指标4
 │   ├── backtest.py           回测口径
 │   └── web.py                服务
 ├── web/templates/index.html  ★ 页面
-├── data/cache/               数据缓存（417M+，已 gitignore，可重新生成）
+├── data/cache/               数据缓存（种子 index_long/stocks_hist/market + universe 随仓库；stocks_delta 各机再生，已忽略）
 │   ├── index_long/           6 板块指数长历史（本项目抓）
-│   ├── stocks_delta/         个股增量（本项目抓，唯一随时间前进的段）
+│   ├── stocks_delta/         个股增量（本项目抓，各机独立刷新再生，**不入库**）
 │   └── stock_ind.parquet     个股指标长表（730 万行）
 ├── data/panels_swing{,2,3}/  三个小波段模型的面板缓存
 └── _explore/                 验证脚本（d1~d99 + s1~s38，正式代码不依赖）
@@ -378,7 +380,7 @@ D:\情绪指标4
 | 层 | 位置 | 谁更新 |
 |---|---|---|
 | 指数长历史 | `data/cache/index_long/` | 本项目自己抓（新浪） |
-| 个股增量 | `data/cache/stocks_delta/` | 本项目自己抓（新浪，**唯一随时间前进的段**） |
+| 个股增量 | `data/cache/stocks_delta/` | 本项目自己抓（新浪，各机独立刷新再生，**不入库**） |
 | 上游个股缓存 | `D:\情绪指标{,2}\data\cache\stocks` | 外部，**只读复用**，本项目不写 |
 | 模型面板 | `data/panels*`（4 类） | 本项目从上面三层重算 |
 

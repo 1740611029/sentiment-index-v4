@@ -77,9 +77,10 @@ python _explore/smoke_page.py                   # ★ 改完页面 JS 必跑
 ⚠️ **可移植部署（change: portable-deployment）**：根目录三个 `.bat` 都用
 `cd /d "%~dp0"` + 两级 Python 探测（项目 `.venv` → 系统 `python`），不再写死本机路径。
 新机器流程：装 Python（勾 Add to PATH）→ 双击 **`首次初始化.bat`**（建 venv + 装依赖 +
-`run.py build`）→ 日常双击 `启动网站.bat` / `更新数据.bat`。种子数据已随仓库分发
-（`data/cache/` 的 `index_long`/`stocks_hist`/`stocks_delta`/`market` + `data/universe/`），
-`.gitignore` 已改为分项放开这四类、继续排除可重建/探索遗留。详见 `DELIVERY.md` §18.12
+`run.py build`）→ 日常双击 `启动网站.bat` / `更新数据.bat`。不可再生的种子已随仓库分发
+（`data/cache/` 的 `index_long`/`stocks_hist`/`market` 与 `data/universe/` 成分股清单）；
+`stocks_delta/`（个股增量，各机独立 `refresh` 再生）**不入库**——已加入 `.gitignore`。
+详见 `DELIVERY.md` §18.12
 与 `README.md` §2「新机器部署」。改 `senti/` 模块后新机器也要重启 `启动网站.bat` 起的服务；
 数据更新同样无需重启。
 
@@ -208,7 +209,7 @@ python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过�
 | 功能增删、页面交互、板块增减 | 同步更新 `README.md` |
 | `store.EVENT_GAP` / `cluster_events` | 同步更新 `DELIVERY.md` §14.5 + 页面图例文案 + `run.py stats` 的事件级表 |
 | 新增验证脚本 | 命名沿用 `dNN.py`（模型/回测类）或 `sNN.py`（小波段/因子搜索类），在 `DELIVERY.md` 脚本索引里登记 |
-| `.gitignore` / 种子数据入库边界（`data/cache/` 分项放开） | 同步 `DELIVERY.md` §18.12 + `README.md` §2「新机器部署」+ 本文件 §1；改前先确认 `git add -n data/` 只含 `index_long`/`stocks_hist`/`stocks_delta`/`market`/`universe`，不含 `panels*/`/`stock_ind.parquet`/探索遗留 |
+| `.gitignore` / 种子数据入库边界（`data/cache/` 分项放开） | 同步 `DELIVERY.md` §18.12 + `README.md` §2「新机器部署」+ 本文件 §1；入库边界为 `index_long`/`stocks_hist`/`market`/`universe`，`stocks_delta` 为各机独立再生、明确忽略；不含 `panels*/`/`stock_ind.parquet`/探索遗留 |
 | **新增小波段模型** | 照 `DELIVERY.md` §13 的清单走：`senti/swingN.py` + `data/panels_swingN/` + `store.py` 的 `union_events`/`summary`/`to_json` + 页面 `MTABS`/板块卡三行/曲线/图例/悬停 + `run.py stats` + README/DELIVERY/本文件三处同步 |
 | 合并视图（`drawUnion` / `SUB3` / `.subchart`，页面上叫「三个一起看」，是默认 Tab） | ⛔ **禁止改回「一张图叠三条曲线」** —— 三个模型刻度不可横比（`DELIVERY.md` §17）。改完跑 `smoke_page.py` 第 ④ 段（断言 3 张子图 / 3 条主折线 / 3 条触发线 / `sigmk` 信号点计数 / 板块卡含三模型最新值） |
 | `.subchart` 的 padding / border | `drawUnion` 里 `W = cvW − 26`（12px×2 padding + 1px×2 border），改 padding 必须同步改这个数，否则 viewBox 比容器宽、SVG 被缩到 ~98% |

@@ -1657,9 +1657,10 @@ SWING-3 23.0→31.8。**注意中证2000 的 SWING 已到 86.5** —— 但顶�
 中证2000 是等权合成序列），**联网重建会得到与本机不一致的历史**（违反铁律八），
 所以数据只能随仓库搬运，不能再生。本项目据此把不可再生的种子数据纳入 git：
 
-- **入库（随仓库分发，约 280MB）**：`data/cache/index_long/`、`data/cache/stocks_hist/`、
-  `data/cache/stocks_delta/`、`data/cache/market/`，以及成分股清单 `data/universe/`
+- **入库（随仓库分发，约 243MB）**：`data/cache/index_long/`、`data/cache/stocks_hist/`、
+  `data/cache/market/`，以及成分股清单 `data/universe/`
   （6 个 parquet，共几十 KB，从上游 `D:\情绪指标2\data\cache\universe` 拷贝收编）。
+  **`stocks_delta/` 不入库**——它是各机独立 `refresh` 再生的增量，已加入 `.gitignore`。
   最大单文件 0.19MB，无需 Git LFS。
 - **继续排除**：`stock_ind.parquet`（可由 `run.py build` 重建）、`data/panels*/`、
   `index_hist/`、`long_index/`、`longhist/`、`valid/` 及根目录外部数据 parquet
@@ -1675,8 +1676,8 @@ SWING-3 23.0→31.8。**注意中证2000 的 SWING 已到 86.5** —— 但顶�
 - **⚠️ 已知边界（新机器）**：新机器没有 v1/v2 上游缓存段，`load_stock` 的个股长历史
   比本机少一段只读兜底段。种子数据与本机同为一份 commit，`refresh` 纯追加语义保证
   历史不被改写；跨机逐点比对四模型分值应一致（不一致再单独评估补差量，不在本 change 内）。
-- **`refresh` 后 `stocks_delta/` 会变脏**：两种用法都成立——定期 `git add data/cache/stocks_delta`
-  提交同步，或各机独立更新互不干扰。
+- **`stocks_delta/` 已明确忽略（各机独立再生）**：`git clone` 后该目录为空，首次必须 `refresh`
+  抓取；`refresh` 后不会显示为未提交修改。各机独立更新、互不干扰（种子一致，历史段谁都改不了）。
 
 # 19. 目标日回查：浅回调 V 反是已知漏检边界，阈值无可优化空间（2026-10-07）
 
