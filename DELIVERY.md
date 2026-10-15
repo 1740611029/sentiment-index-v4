@@ -1651,6 +1651,33 @@ SWING-3 23.0→31.8。**注意中证2000 的 SWING 已到 86.5** —— 但顶�
   文案纪律：只用「将触发 / 已达触发线」，不出现「提示 / 信号 / 买入」。
 - **红线重申**：判定纯内存，不进事件/命中率统计、不占冷却、不落盘。
 
+### 18.12 种子数据入库与跨机部署（change: portable-deployment，2026-10-15）
+
+历史段是拼接/合成的（`index_long` 含拼接段；`stocks_hist` 锚定 2023-06 复权；
+中证2000 是等权合成序列），**联网重建会得到与本机不一致的历史**（违反铁律八），
+所以数据只能随仓库搬运，不能再生。本项目据此把不可再生的种子数据纳入 git：
+
+- **入库（随仓库分发，约 280MB）**：`data/cache/index_long/`、`data/cache/stocks_hist/`、
+  `data/cache/stocks_delta/`、`data/cache/market/`，以及成分股清单 `data/universe/`
+  （6 个 parquet，共几十 KB，从上游 `D:\情绪指标2\data\cache\universe` 拷贝收编）。
+  最大单文件 0.19MB，无需 Git LFS。
+- **继续排除**：`stock_ind.parquet`（可由 `run.py build` 重建）、`data/panels*/`、
+  `index_hist/`、`long_index/`、`longhist/`、`valid/` 及根目录外部数据 parquet
+  （`margin/qvix/bond_rate/a_valuation/fund_new/hsgt_north/breadth_short`——
+  `extdata.py` 它们却**无任何现役模块 import**，属探索遗留）。
+- **成分股清单本地化**：`senti/data.py` 的 `load_universe()` 改为「本地 `data/universe/` 优先、
+  缺失时回退 `UPSTREAM["v2_universe"]`」，断掉对 `D:\情绪指标{,2}` 的硬依赖，
+  新机器无上游目录也能 `refresh`。`config.UPSTREAM` 本身**不改**——
+  v1/v2 个股缓存仍在本机 `load_stock` 里参与长历史拼接，删了会改写本机数据链。
+- **`.venv` 与 Python 探测**：启动脚本（`.bat`）改用 `cd /d "%~dp0"` + 两级探测
+  （项目内 `.venv` → 系统 `python`），不再写死本机绝对路径；新增 `首次初始化.bat`
+  一键建 venv + 装 `requirements.txt` + `run.py build`。`requirements.txt` 固化本机现役版本。
+- **⚠️ 已知边界（新机器）**：新机器没有 v1/v2 上游缓存段，`load_stock` 的个股长历史
+  比本机少一段只读兜底段。种子数据与本机同为一份 commit，`refresh` 纯追加语义保证
+  历史不被改写；跨机逐点比对四模型分值应一致（不一致再单独评估补差量，不在本 change 内）。
+- **`refresh` 后 `stocks_delta/` 会变脏**：两种用法都成立——定期 `git add data/cache/stocks_delta`
+  提交同步，或各机独立更新互不干扰。
+
 # 19. 目标日回查：浅回调 V 反是已知漏检边界，阈值无可优化空间（2026-10-07）
 
 ## 19.1 起因与口径

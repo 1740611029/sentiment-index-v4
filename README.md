@@ -123,7 +123,7 @@ SWING-2 的公式、参数与已知边界见第 12 节，SWING-3 见第 13 节�
 
 ## 2. 快速开始
 
-Python 环境：`C:/Users/wr/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe`
+Python 环境：任意 Python 3.x（无需特定路径；脚本会自动建项目内 `.venv`，详见下）。
 
 ```bash
 cd D:\情绪指标4
@@ -138,7 +138,25 @@ python run.py build --force                       # 强制重建全部（首次�
 python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑的冒烟测试
 ```
 
-也可以直接双击根目录的 **`启动网站.bat`** / **`更新数据.bat`**。
+也可以直接双击根目录的 **`启动网站.bat`** / **`更新数据.bat`** / **`首次初始化.bat`**。
+脚本都使用「自身所在目录」作为工作目录，并自动探测 Python（项目 `.venv` → 系统 `python`），
+**不再依赖任何本机绝对路径**——可放在任意盘符、任意目录下运行。
+
+### 新机器部署（从零开始）
+
+仓库已自带不可再生的种子数据（`data/cache/index_long/`、`stocks_hist/`、`stocks_delta/`、
+`market/` 与成分股清单 `data/universe/`，共约 280MB），所以 **`git clone` 后数据与本机一致**：
+
+1. **安装 Python 3.x**，安装时勾选 **「Add python.exe to PATH」**（仅需装一次）。
+2. 双击 **`首次初始化.bat`**：自动建项目内 `.venv` → 按 `requirements.txt` 装依赖
+   （pandas/numpy/pyarrow/flask/requests/akshare）→ `run.py build` 重建个股指标与全部面板。
+   三步任意一步失败都会停下报错，不会带病继续。首次约需十几分钟。
+3. 之后日常双击 **`启动网站.bat`**（开页面）和 **`更新数据.bat`**（联网刷新）即可。
+
+> ⚠️ `更新数据.bat`/`refresh` 需要能访问新浪行情接口（代理环境可能被拦，脚本已自动清代理）。
+> ⚠️ `refresh` 之后 `stocks_delta/` 里的 parquet 会显示为 git 未提交修改。两种用法都成立：
+> 一是定期 `git add data/cache/stocks_delta` 提交，让所有机器同步到同一数据；
+> 二是各机器独立更新、互不干扰（种子一致，历史段谁都改不了，见下节与 `DELIVERY.md` 第 18 节）。
 
 > ⚠️ **想更新到最新交易日，必须用 `refresh`。**
 > `update` / `build` 都**不联网** —— 数据链的源头是本地缓存，重算一万遍日期也不会前进

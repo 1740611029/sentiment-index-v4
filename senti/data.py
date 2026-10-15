@@ -67,8 +67,15 @@ def load_index(board_key: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------- 成分股
+# 本地仓库内清单优先（可移植：新机器没有上游目录也能跑），缺失时回退到上游缓存。
+LOCAL_UNIVERSE = os.path.join(C.DATA_DIR, "universe")
+
+
 def load_universe(board_key: str) -> list[str]:
-    f = os.path.join(C.UPSTREAM["v2_universe"], f"{C.BOARDS[board_key]['uni']}.parquet")
+    name = C.BOARDS[board_key]["uni"]
+    f = os.path.join(LOCAL_UNIVERSE, f"{name}.parquet")
+    if not os.path.exists(f):                      # 仓库内未带 → 回退上游（本机旧行为）
+        f = os.path.join(C.UPSTREAM["v2_universe"], f"{name}.parquet")
     df = pd.read_parquet(f)
     return sorted(df["code"].astype(str).str.zfill(6).unique().tolist())
 

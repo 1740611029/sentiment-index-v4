@@ -2,11 +2,26 @@
 rem ============================================
 rem  情绪指标 v4 - daily update
 rem  refresh = fetch new data (the ONLY network step) + rebuild all panels
-rem  Encoding: ASCII only + CRLF, safe for cmd.exe
+rem  Enc: ASCII-only + CRLF, safe for cmd.exe
 rem ============================================
-cd /d D:\情绪指标4
+cd /d "%~dp0"
 
-set PY=C:\Users\wr\.workbuddy-ai\binaries\python\envs\default\Scripts\python.exe
+set SYS=
+if exist ".venv\Scripts\python.exe" (
+  set "PY=.venv\Scripts\python.exe"
+) else (
+  where python >nul 2>nul
+  if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python 3.x with "Add to PATH" ticked.
+    echo         Then run [首次初始化.bat] once, or just this bat after install.
+    pause
+    exit /b 1
+  )
+  for /f "delims=" %%i in ('where python') do (
+    if not defined SYS set "SYS=%%i"
+  )
+  set "PY=%SYS%"
+)
 
 echo [1/2] Fetching new data and rebuilding all panels (about 5-10 min) ...
 "%PY%" run.py refresh

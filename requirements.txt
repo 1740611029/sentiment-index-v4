@@ -1,0 +1,10 @@
+# 情绪指标 v4 运行依赖（按本机现役 venv 实际版本固化）。
+# 部署新机器用：python -m venv .venv && .venv\Scripts\python.exe -m pip install -r requirements.txt
+# 仅服务/抓取/统计所需（run.py serve|refresh|update|build|stats）。
+
+numpy==2.5.3
+pandas==3.0.6
+pyarrow==25.0.1
+Flask==3.1.3
+requests==2.34.2
+akshare==1.18.96

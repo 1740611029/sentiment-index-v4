@@ -1,5 +1,21 @@
-# 数据缓存：由 run.py build 重新生成，体积 400M+，不入库
-data/cache/
+# 数据缓存：seed（不可再生，随仓库分发，约 280MB）
+#   index_long（指数拼接/合成长历史 1MB）、stocks_hist（个股长历史 242MB）、
+#   stocks_delta（本项目抓取增量 36MB）、market（破净率 0.5MB）
+# 以下为可重建产物 / 探索遗留 / 外部数据（现役模型不读），继续排除：
+data/cache/stock_ind.parquet
+data/cache/index_hist/
+data/cache/long_index/
+data/cache/longhist/
+data/cache/valid/
+data/cache/a_valuation.parquet
+data/cache/bond_rate.parquet
+data/cache/breadth_short.parquet
+data/cache/fund_new.parquet
+data/cache/hsgt_north.parquet
+data/cache/margin.parquet
+data/cache/qvix.parquet
+data/cache/qvix_factors.parquet
+# 面板缓存（可由 run.py build 重建）
 data/panels*/
 
 # 冒烟测试中间产物
