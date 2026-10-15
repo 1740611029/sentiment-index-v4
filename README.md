@@ -155,6 +155,15 @@ python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑�
    三步任意一步失败都会停下报错，不会带病继续。首次约需十几分钟。
 3. 之后日常双击 **`启动网站.bat`**（开页面）和 **`更新数据.bat`**（联网刷新）即可。
 
+> ⚠️ **如果 `更新数据.bat` 报 `data\panels\SH.parquet 不存在`**：说明面板还没建出来
+> （面板是派生数据、不随仓库分发，第 2 步的 `run.py build` 或 refresh 没走完，
+> 常见原因是中途被 Ctrl-C / 关窗口打断）。
+> 双击 **`首次初始化.bat`** 重跑一次即可（或命令行 `python run.py build`），
+> 现在的脚本会直接提示这句话，不会再甩一屏报错。
+> 排查命令（在仓库根目录执行）：
+> `.venv\Scripts\python.exe -c "import os;d=r'data\panels';print(os.path.isdir(d), len(os.listdir(d)) if os.path.isdir(d) else 0)"`
+> 输出 `False 0` 就是面板没建。
+
 > ⚠️ `更新数据.bat`/`refresh` 需要能访问新浪行情接口（代理环境可能被拦，脚本已自动清代理）。
 > ⚠️ `stocks_delta/` 已被 `.gitignore` 忽略（设计如此，各机独立再生），`refresh` 后不会显示为未提交修改；
 > 其他机器 `git clone` 后该目录为空，首次必须跑一次 `更新数据.bat` 抓取增量。种子一致 + 同一数据源，

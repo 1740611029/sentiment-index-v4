@@ -102,7 +102,26 @@ def build_and_cache(force: bool = False) -> dict[str, pd.DataFrame]:
     return panels
 
 
+def panels_ready() -> bool:
+    """主面板（SENTI-1）缓存是否齐全。
+
+    为什么需要它：`data/panels*/` 是**不随仓库分发**的派生数据（见 .gitignore），
+    新机器 clone 下来这里就是空的。以前 `run.py stats` 直接 `load()` →
+    抛一屏 `FileNotFoundError: data/panels/SH.parquet`，
+    看的人只会以为「程序坏了」，实际上是「面板还没建」。
+    """
+    return all(os.path.exists(os.path.join(PANEL_DIR, f"{b}.parquet"))
+               for b in C.BOARD_ORDER)
+
+
 def load() -> dict[str, pd.DataFrame]:
+    if not panels_ready():
+        raise FileNotFoundError(
+            f"面板缓存不存在：{PANEL_DIR} 下缺少板块 parquet。\n"
+            "  面板是派生数据、不随仓库分发，新机器必须先建一次：\n"
+            "    python run.py build      （或双击 首次初始化.bat）\n"
+            "  之后再运行 stats / serve。"
+        )
     return {b: pd.read_parquet(os.path.join(PANEL_DIR, f"{b}.parquet")) for b in C.BOARD_ORDER}
 
 

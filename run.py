@@ -12,12 +12,39 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from senti import config as C, data, model, store, web
 
 
+# 种子数据 = 必须随仓库分发的不可再生数据（.gitignore 里显式放行）：
+#   index_long（指数长历史）/ stocks_hist（个股长历史）/ universe（成分股清单）
+# 新机器缺任何一个，下面所有命令都会在几百行 traceback 后失败。
+# 与其让人猜，不如开工前先说清楚。
+SEED_DIRS = [
+    (os.path.join(C.CACHE_DIR, "index_long"), "指数长历史"),
+    (os.path.join(C.CACHE_DIR, "stocks_hist"), "个股长历史"),
+    (os.path.join(C.DATA_DIR, "universe"), "成分股清单"),
+]
+
+
+def _require_seeds():
+    miss = [p for p, _ in SEED_DIRS
+            if not (os.path.isdir(p)
+                    and any(f.endswith(".parquet") for f in os.listdir(p)))]
+    if not miss:
+        return
+    print("[ERROR] 种子数据缺失 —— 这些目录必须随仓库一起分发（不是程序 bug）：")
+    for p in miss:
+        lab = next(l for d, l in SEED_DIRS if d == p)
+        print(f"    {p}   ({lab})")
+    print("  处理：确认这台机器拿到的是完整仓库（完整 git clone，或把 data\\ 整个目录拷过来）。")
+    raise SystemExit(1)
+
+
 def cmd_build(args):
+    _require_seeds()
     data.build_stock_indicators(force=True)
     store.build_and_cache(force=True)
     # ⚠️ 必须显式重建：store.build_and_cache() 只管 SENTI-1 面板，
@@ -34,6 +61,7 @@ def cmd_update(args):
 
 def cmd_refresh(args):
     """抓新数据 → 重建全部面板。这是本项目唯一会联网的命令。"""
+    _require_seeds()
     from senti import fetch
 
     r = fetch.refresh(lookback=args.lookback, workers=args.workers,
@@ -64,6 +92,14 @@ def cmd_refresh(args):
 
 
 def cmd_stats(args):
+    # 面板是派生数据、不入库；新机器 / 上次刷新被中断时这里会是空的。
+    # 直接 load() 只会抛 FileNotFoundError，看的人不知道该怎么办。
+    if not store.panels_ready():
+        print("[ERROR] 面板缓存不存在（data\\panels\\）—— 还没建过面板。")
+        print("  请先运行：python run.py build   （新机器直接双击 首次初始化.bat）")
+        print("  若这台机器刚跑过 更新数据.bat 且中途被中断（Ctrl-C / 关窗口），"
+              "面板也会是空的，重跑一次即可。")
+        raise SystemExit(1)
     panels = store.load()
     s = store.summary(panels)
     thr = s["entry_thr"]

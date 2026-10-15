@@ -77,7 +77,14 @@ python _explore/smoke_page.py                   # ★ 改完页面 JS 必跑
 ⚠️ **可移植部署（change: portable-deployment）**：根目录三个 `.bat` 都用
 `cd /d "%~dp0"` + 两级 Python 探测（项目 `.venv` → 系统 `python`），不再写死本机路径。
 新机器流程：装 Python（勾 Add to PATH）→ 双击 **`首次初始化.bat`**（建 venv + 装依赖 +
-`run.py build`）→ 日常双击 `启动网站.bat` / `更新数据.bat`。不可再生的种子已随仓库分发
+`run.py build`）→ 日常双击 `启动网站.bat` / `更新数据.bat`。
+⛔ **bat 里判失败必须写两条**：`if errorlevel 1` 只认 ≥1 的退出码，
+硬崩溃/Ctrl-C/关窗口是**负退出码**（0xC0000005 / 0xC000013A），会被它判成「成功」→
+一个死掉的 refresh 继续走到 `run.py stats`，然后抛 `data/panels/SH.parquet 不存在`
+（面板是派生数据、不入库，没建出来就是这个错）。所以还要加 `if not errorlevel 0`。
+新机器最容易被打断的是 `build_stock_indicators()`（5000 个 parquet → 179MB 长表，十几分钟）。
+已加护栏：`store.panels_ready()` + `run.py stats` 说人话 + `run.py _require_seeds()`
+验种子目录 + `更新数据.bat` 面板缺失时自动补 `build`（详见 `DELIVERY.md` §18.13）。不可再生的种子已随仓库分发
 （`data/cache/` 的 `index_long`/`stocks_hist`/`market` 与 `data/universe/` 成分股清单）；
 `stocks_delta/`（个股增量，各机独立 `refresh` 再生）**不入库**——已加入 `.gitignore`。
 详见 `DELIVERY.md` §18.12

@@ -1679,6 +1679,34 @@ SWING-3 23.0→31.8。**注意中证2000 的 SWING 已到 86.5** —— 但顶�
 - **`stocks_delta/` 已明确忽略（各机独立再生）**：`git clone` 后该目录为空，首次必须 `refresh`
   抓取；`refresh` 后不会显示为未提交修改。各机独立更新、互不干扰（种子一致，历史段谁都改不了）。
 
+### 18.13 新机器「`data/panels/SH.parquet` 不存在」——派生数据缺席 + bat 退出码盲区（2026-10-15 修）
+
+**现象**：新机器跑 `更新数据.bat`，第 ① 步 refresh 看着过去了，第 ② 步 `run.py stats`
+抛 `FileNotFoundError: ...\data\panels\SH.parquet`（`store.load()`）。
+**本机从不出现**——本机的 `data/panels*/` 与 `data/cache/stock_ind.parquet` 早已存在，
+`stats` 直接读缓存即可；新机器这两样都是空的。
+
+**根因（两层）**
+
+1. `data/panels*/` 是派生数据、不入库（本 §18.12），只能由 `run.py build` / `refresh` 现场生成。
+   新机器上生成它要先 `build_stock_indicators()`——读约 5000 个 `stocks_hist` parquet
+   拼成 179MB 长表，十几分钟、内存峰值高，**这一步是最容易被中断/打爆的地方**；
+   它没走完 → 面板一个都没写出来。
+2. 旧 bat 用 `if errorlevel 1` 判失败。**该判断只认 ≥1 的退出码**；Windows 上
+   硬崩溃（`0xC0000005`）、Ctrl-C（`0xC000013A`）、窗口被关的退出码是**负数**，
+   `if errorlevel 1` 判为「通过」→ 一个死掉的 refresh 被当成成功，脚本继续走到 `stats` 才炸。
+   （首次初始化.bat 同理：build 被打断也会误报 "Done!"）
+
+**修复（三处）**
+
+- `senti/store.py`：新增 `panels_ready()`；`load()` 缺文件时抛**带处置办法**的提示
+  （先跑 `run.py build` / 双击 `首次初始化.bat`），不再是一屏裸 traceback。
+- `run.py`：`cmd_stats` 先查 `store.panels_ready()`，缺面板直接说人话并退出 1；
+  新增 `_require_seeds()`，`build` / `refresh` 开工前先验 `index_long`/`stocks_hist`/`universe`
+  三个种子目录（缺了说明仓库不完整，不是程序 bug）。
+- 三个 `.bat`：失败判定改为两条 `if errorlevel 1` + **`if not errorlevel 0`**（覆盖负退出码）；
+  `更新数据.bat` 在 refresh 之后补一步「面板缺失就自动 `run.py build`」再打 stats。
+
 # 19. 目标日回查：浅回调 V 反是已知漏检边界，阈值无可优化空间（2026-10-07）
 
 ## 19.1 起因与口径
