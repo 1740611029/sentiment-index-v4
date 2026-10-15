@@ -145,8 +145,9 @@ python _explore/smoke_page.py                     # ★ 改完页面 JS 必跑�
 ### 新机器部署（从零开始）
 
 仓库已自带不可再生的种子数据（`data/cache/index_long/`、`stocks_hist/`、`market/`
-与成分股清单 `data/universe/`，共约 243MB）。`stocks_delta/`（个股增量）**不入库**，
-由各机独立 `refresh` 再生，所以 `git clone` 后需先跑一次 `更新数据.bat` 生成它；
+与成分股清单 `data/universe/`，共约 243MB）。以下**不入库、由各机本地生成**：
+`stocks_delta/`（个股增量，需跑一次 `更新数据.bat` 抓取）、`data/panels*/` 与
+`stock_ind.parquet`（派生数据，`build` 重建）、`data/meta.json`（构建时间戳，运行时状态）。
 种子一致 + 同一数据源，最终分值跨机一致：
 
 1. **安装 Python 3.x**，安装时勾选 **「Add python.exe to PATH」**（仅需装一次）。
@@ -360,7 +361,7 @@ D:\情绪指标4
 │   ├── backtest.py           回测口径
 │   └── web.py                服务
 ├── web/templates/index.html  ★ 页面
-├── data/cache/               数据缓存（种子 index_long/stocks_hist/market + universe 随仓库；stocks_delta 各机再生，已忽略）
+├── data/cache/               数据缓存（种子 index_long/stocks_hist/market + universe 随仓库；stocks_delta 各机再生、meta.json 运行时状态，均已忽略）
 │   ├── index_long/           6 板块指数长历史（本项目抓）
 │   ├── stocks_delta/         个股增量（本项目抓，各机独立刷新再生，**不入库**）
 │   └── stock_ind.parquet     个股指标长表（730 万行）

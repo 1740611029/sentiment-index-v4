@@ -1678,6 +1678,15 @@ SWING-3 23.0→31.8。**注意中证2000 的 SWING 已到 86.5** —— 但顶�
   历史不被改写；跨机逐点比对四模型分值应一致（不一致再单独评估补差量，不在本 change 内）。
 - **`stocks_delta/` 已明确忽略（各机独立再生）**：`git clone` 后该目录为空，首次必须 `refresh`
   抓取；`refresh` 后不会显示为未提交修改。各机独立更新、互不干扰（种子一致，历史段谁都改不了）。
+- **`data/meta.json` 已明确忽略（2026-10-15）**：它只存 `built_at` / `last_date` / `start`
+  三个运行时字段，由 `store.build_and_cache()` 每次 `build` / `refresh` 重写（§18、§18.13），
+  **每台机器、每次构建都不同** —— 入库只会让每次 `update` 都产生一条脏记录、跨机提交互相冲突。
+  它又是 `web.ensure()` 判断「面板要不要重算」的版本号（§18.13），**文件本身必须保留，只是不入库**。
+  新机器缺失时 `store.meta()` 会返回 `{"built_at": "-", ...}` 兜底，首次 `build` 即自动生成，无兼容问题。
+
+> **入库边界一句话**：`data/cache/` 下只有 `index_long` / `stocks_hist` / `market` /
+> `data/universe/` 是不可再生种子、必须入库；`stocks_delta` 可各机再生、`meta.json` 是运行时状态，
+> 二者明确忽略；`panels*/` 与 `stock_ind.parquet` 是派生数据，同样不入库。
 
 ### 18.13 新机器「`data/panels/SH.parquet` 不存在」——派生数据缺席 + bat 退出码盲区（2026-10-15 修）
 

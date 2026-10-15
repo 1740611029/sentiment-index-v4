@@ -22,6 +22,8 @@ data/cache/qvix.parquet
 data/cache/qvix_factors.parquet
 # 面板缓存（可由 run.py build 重建）
 data/panels*/
+# 面板构建时间戳（built_at/last_date，各机各次 build 都不同，入库只会制造冲突）
+data/meta.json
 
 # 冒烟测试中间产物
 _explore/_smoke_tmp/
