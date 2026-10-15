@@ -97,6 +97,12 @@ def _stock_files() -> dict[str, tuple[str, str, str]]:
         code = os.path.splitext(os.path.basename(p))[0].zfill(6)
         a, b, _ = out.get(code, (None, None, None))
         out[code] = (a, b, p)
+    # 可移植兜底：本机没有上游缓存 / 增量时（新机器首次初始化），
+    # 改用随仓库分发的 stocks_hist 长历史种子作为个股来源。
+    if not out:
+        for p in glob.glob(os.path.join(HIST_DIR, "*.parquet")):
+            code = os.path.splitext(os.path.basename(p))[0].zfill(6)
+            out[code] = (None, None, None)
     return out
 
 
@@ -171,10 +177,11 @@ def load_stock(code: str, files: dict | None = None) -> pd.DataFrame:
                 df = (df.sort_values("date").drop_duplicates("date", keep="last")
                         .reset_index(drop=True))
 
-    if len(df) == 0:
-        return df
-
     h = _load_hist(code)
+    if len(df) == 0:
+        # 没有上游 / 增量缓存（新机器只有 stocks_hist 种子）：直接返回长历史
+        return h if (h is not None and len(h) > 0) else pd.DataFrame()
+
     if h is None or len(h) == 0:
         return df
     cut = df["date"].min()
