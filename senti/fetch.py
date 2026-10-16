@@ -222,7 +222,7 @@ def fetch_stocks(codes: list[str], lookback: int = DEFAULT_LOOKBACK,
       · 前复权基准会随除权除息漂移，需要重叠期来算常数比率（见 data.load_stock）
       · 顺带修掉上游缓存里可能存在的当日错值
 
-    **不写上游缓存**（`D:\\情绪指标{,2}\\data\\cache\\stocks` 是只读复用的）。
+    **不写 stocks_hist/**（长历史已合并入库，refresh 只写 stocks_delta/）。
     返回 (frames, stats)：frames 供中证2000 合成直接用，避免再读一遍盘。
     """
     prep_env()

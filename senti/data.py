@@ -1,9 +1,9 @@
-"""数据层：加载指数日线、成分股清单、个股日线（长历史 + v1/v2 缓存），
+"""数据层：加载指数日线、成分股清单、个股日线（长历史 + 增量），
 并预计算个股级指标长表（供各板块广度因子复用）。
 
-个股长历史来自新浪前复权（锚定 2023-06），与 v1/v2 缓存（锚定当前）的复权基准不同。
-qfq 调整是乘性的，所以用重叠期求一个常数比率对齐；比率不稳定（期间有分红送转）时
-放弃该股的长历史，只用缓存段。
+个股长历史来自 stocks_hist/（已合并原上游 v1/v2 缓存，前复权已对齐）；
+stocks_delta/ 是本项目 run.py refresh 抓取的增量（前复权锚定抓取当日）。
+两段的前复权基准不同，拼接时需做常数比率对齐（qfq 是乘性调整）。
 """
 from __future__ import annotations
 
@@ -21,8 +21,7 @@ warnings.filterwarnings("ignore")
 
 MKT_DIR = os.path.join(C.CACHE_DIR, "market")
 # 本项目自己抓的个股增量（`run.py refresh` 写入，见 fetch.py）。
-# 上游 v1/v2 缓存是**只读复用**的、时间停在他们最后一次更新；
-# 这一段是唯一会随时间前进的数据。
+# 这是唯一会随时间前进的数据段。
 DELTA_DIR = os.path.join(C.CACHE_DIR, "stocks_delta")
 BNA_PCT_MIN = 60.0     # 「估值已投降」的分位门槛，见 store.py 里的说明
 
@@ -53,13 +52,8 @@ def load_bna_pct() -> pd.Series | None:
 
 # ---------------------------------------------------------------- 指数
 def load_index(board_key: str) -> pd.DataFrame:
-    """返回 date/open/high/low/close/volume/amount，按日期升序。
-
-    优先用 index_long（含锚点预热段）；没有则回退到 v2 缓存的 3 年段。
-    """
-    fl = os.path.join(C.CACHE_DIR, "index_long", f"{board_key}.parquet")
-    f = fl if os.path.exists(fl) else os.path.join(
-        C.UPSTREAM["v2_index"], f"{C.BOARDS[board_key]['index']}.parquet")
+    """返回 date/open/high/low/close/volume/amount，按日期升序。"""
+    f = os.path.join(C.CACHE_DIR, "index_long", f"{board_key}.parquet")
     df = pd.read_parquet(f)
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").drop_duplicates("date").reset_index(drop=True)
@@ -67,56 +61,35 @@ def load_index(board_key: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------- 成分股
-# 本地仓库内清单优先（可移植：新机器没有上游目录也能跑），缺失时回退到上游缓存。
 LOCAL_UNIVERSE = os.path.join(C.DATA_DIR, "universe")
 
 
 def load_universe(board_key: str) -> list[str]:
     name = C.BOARDS[board_key]["uni"]
     f = os.path.join(LOCAL_UNIVERSE, f"{name}.parquet")
-    if not os.path.exists(f):                      # 仓库内未带 → 回退上游（本机旧行为）
-        f = os.path.join(C.UPSTREAM["v2_universe"], f"{name}.parquet")
     df = pd.read_parquet(f)
     return sorted(df["code"].astype(str).str.zfill(6).unique().tolist())
 
 
 # ---------------------------------------------------------------- 个股日线
-def _stock_files() -> dict[str, tuple[str, str, str]]:
-    """code -> (v1_path, v2_path, delta_path)，任一可为 None。
+def _stock_files() -> dict[str, tuple[str | None, str | None]]:
+    """code -> (hist_path, delta_path)，任一可为 None。
 
-    v1 / v2 = 上游只读缓存；delta = 本项目 `run.py refresh` 抓到的最新增量。
-    优先级由 load_stock 决定：delta > v2 > v1。
+    hist = 合并后的长历史（含已迁入的原上游 v1/v2 数据）；
+    delta = 本项目 `run.py refresh` 抓到的最新增量。
     """
     out: dict[str, tuple] = {}
-    for tag, key in (("v1", "v1_stocks"), ("v2", "v2_stocks")):
-        for p in glob.glob(os.path.join(C.UPSTREAM[key], "*.parquet")):
-            code = os.path.splitext(os.path.basename(p))[0].zfill(6)
-            a, b, c = out.get(code, (None, None, None))
-            out[code] = (p, b, c) if tag == "v1" else (a, p, c)
+    for p in glob.glob(os.path.join(HIST_DIR, "*.parquet")):
+        code = os.path.splitext(os.path.basename(p))[0].zfill(6)
+        out[code] = (p, None)
     for p in glob.glob(os.path.join(DELTA_DIR, "*.parquet")):
         code = os.path.splitext(os.path.basename(p))[0].zfill(6)
-        a, b, _ = out.get(code, (None, None, None))
-        out[code] = (a, b, p)
-    # 可移植兜底：本机没有上游缓存 / 增量时（新机器首次初始化），
-    # 改用随仓库分发的 stocks_hist 长历史种子作为个股来源。
-    if not out:
-        for p in glob.glob(os.path.join(HIST_DIR, "*.parquet")):
-            code = os.path.splitext(os.path.basename(p))[0].zfill(6)
-            out[code] = (None, None, None)
+        h, _ = out.get(code, (None, None))
+        out[code] = (h, p)
     return out
 
 
 HIST_DIR = os.path.join(C.CACHE_DIR, "stocks_hist")
-
-
-def _load_hist(code: str):
-    """新浪长历史（个股日线），不存在则返回 None。"""
-    p = os.path.join(HIST_DIR, f"{code}.parquet")
-    if not os.path.exists(p):
-        return None
-    d = pd.read_parquet(p)
-    d["date"] = pd.to_datetime(d["date"])
-    return d
 
 
 def _ratio_to(base: pd.Series, other: pd.Series, min_rows: int = 5) -> float | None:
@@ -134,31 +107,25 @@ def _ratio_to(base: pd.Series, other: pd.Series, min_rows: int = 5) -> float | N
 
 
 def load_stock(code: str, files: dict | None = None) -> pd.DataFrame:
-    """合并 delta + v1 + v2 + 长历史，越新越优先。
+    """合并 hist + delta，delta 越新越优先。
 
-    两种拼接都要做**常数比率对齐**，因为前复权基准不同：
-      · 长历史（锚定 2023-06）→ 缓存口径
-      · delta（锚定抓取当日）→ 缓存口径
-    比率不稳定时放弃该段。delta 只追加「比缓存更新的日期」，不覆盖历史 ——
-    覆盖会让已发布的分数随抓取日漂移。
+    hist 已包含合并后的完整长历史（原上游 v1/v2 数据已迁入）；
+    delta 是本项目 refresh 抓的增量。两段前复权基准不同，
+    用重叠期常数比率对齐。比率不稳定时放弃 delta 段。
+    delta 只追加「比 hist 更新的日期」，不覆盖历史。
     """
     files = files or _stock_files()
-    v1, v2, dl = files.get(code, (None, None, None))
-    frames = []
-    for p in (v1, v2):
-        if p and os.path.exists(p):
-            d = pd.read_parquet(p)
-            d["date"] = pd.to_datetime(d["date"])
-            frames.append(d)
-    if frames:
-        df = pd.concat(frames, ignore_index=True)
+    hp, dp = files.get(code, (None, None))
+
+    if hp and os.path.exists(hp):
+        df = pd.read_parquet(hp)
+        df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
     else:
         df = pd.DataFrame()
 
-    # ---- 本项目抓的增量：只追加，并按重叠期比率对齐到缓存口径 ----
-    if dl and os.path.exists(dl):
-        d = pd.read_parquet(dl)
+    if dp and os.path.exists(dp):
+        d = pd.read_parquet(dp)
         d["date"] = pd.to_datetime(d["date"])
         d = d.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
         if len(df) == 0:
@@ -177,40 +144,7 @@ def load_stock(code: str, files: dict | None = None) -> pd.DataFrame:
                 df = (df.sort_values("date").drop_duplicates("date", keep="last")
                         .reset_index(drop=True))
 
-    h = _load_hist(code)
-    if len(df) == 0:
-        # 没有上游 / 增量缓存（新机器只有 stocks_hist 种子）：直接返回长历史
-        return h if (h is not None and len(h) > 0) else pd.DataFrame()
-
-    if h is None or len(h) == 0:
-        return df
-    cut = df["date"].min()
-
-    # 重叠期求常数比率（qfq 是乘性调整）
-    lo = max(h["date"].min(), df["date"].min())
-    hi = min(h["date"].max(), df["date"].max())
-    ratio = None
-    if lo < hi:
-        A = h[(h["date"] >= lo) & (h["date"] <= hi)].set_index("date")["close"].astype(float)
-        B = df[(df["date"] >= lo) & (df["date"] <= hi)].set_index("date")["close"].astype(float)
-        j = pd.concat([A, B], axis=1, keys=["h", "v"]).dropna()
-        if len(j) >= 30:
-            r = (j["v"] / j["h"]).replace([np.inf, -np.inf], np.nan).dropna()
-            if len(r) and r.mean() and (r.std() / r.mean()) < 0.02:
-                ratio = float(r.median())
-    if ratio is None:
-        return df
-
-    pre = h[h["date"] < cut].copy()
-    if len(pre) == 0:
-        return df
-    if abs(ratio - 1.0) > 1e-6:
-        for c in ("open", "high", "low", "close"):
-            if c in pre.columns:
-                pre[c] = pre[c] * ratio
-    out = pd.concat([pre, df], ignore_index=True)
-    out["date"] = pd.to_datetime(out["date"])
-    return out.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
+    return df
 
 
 # ---------------------------------------------------------------- 个股指标

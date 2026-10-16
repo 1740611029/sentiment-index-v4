@@ -5,20 +5,12 @@ import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# ---- 上游可复用数据（v1 / v2 项目的缓存，只读） ----
-UPSTREAM = {
-    "v1_stocks": r"D:\情绪指标\data\cache\stocks",
-    "v2_stocks": r"D:\情绪指标2\data\cache\stocks",
-    "v2_index": r"D:\情绪指标2\data\cache\index",
-    "v2_universe": r"D:\情绪指标2\data\cache\universe",
-}
-
 # ---- 本项目自身目录 ----
 DATA_DIR = os.path.join(ROOT, "data")
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
 
 # ---- 板块定义（6 个，顺序即页面顺序） ----
-# key: 板块标识; index_file: v2 指数缓存文件名; uni: 成分股清单文件名
+# key: 板块标识; index_file: index_long 文件名; uni: 成分股清单文件名
 BOARDS = {
     "SH":     {"name": "大盘",     "index": "SH_INDEX", "uni": "SH_INDEX", "desc": "上证指数 000001.SH"},
     "STAR":   {"name": "科创板",   "index": "STAR",     "uni": "STAR",     "desc": "科创50 000688.SH"},
