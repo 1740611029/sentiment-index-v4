@@ -67,11 +67,11 @@ def cmd_refresh(args):
     r = fetch.refresh(lookback=args.lookback, workers=args.workers,
                       skip_stocks=args.index_only)
 
-    print("⑤ 重建个股指标长表 ...")
+    print("⑥ 重建个股指标长表 ...")
     data.build_stock_indicators(force=True)
-    print("⑥ 重建 SENTI-1 面板 ...")
+    print("⑦ 重建 SENTI-1 面板 ...")
     store.build_and_cache(force=True)
-    print("⑦ 重建三个小波段面板（必须 force，否则继续用旧面板）...")
+    print("⑧ 重建三个小波段面板（必须 force，否则继续用旧面板）...")
     store.rebuild_swing_panels(force=True)
 
     m = store.meta()

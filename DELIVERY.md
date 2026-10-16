@@ -1485,16 +1485,17 @@ score = 100 × (x − p2) / (p98 − p2)
 | `run.py` | 新增 `refresh` 子命令；`update` 追加警告文案 |
 | `更新数据.bat` | 从 `run.py update` 改为 `run.py refresh` |
 
-`refresh` 的七个步骤（前四步在 `fetch.refresh()` 内，后三步在 `run.py` 内）：
+`refresh` 的八个步骤（前五步在 `fetch.refresh()` 内，后三步在 `run.py` 内）：
 
 ```
 ① 抓个股日线增量（4655 只并集，8 线程，约 10 分钟）→ data/cache/stocks_delta/
 ② 抓 5 板块指数增量（新浪）→ 只追加 > 本地末日的日期
 ③ 续算中证2000（等权合成）
 ④ 对齐 6 板块日期轴到最短的那个
-⑤ data.build_stock_indicators(force=True)
-⑥ store.build_and_cache(force=True)          # SENTI-1
-⑦ store.rebuild_swing_panels(force=True)     # 三个小波段，必须 force
+⑤ 抓市场级数据（破净股占比，乐咕全量覆盖写 market/bna.parquet，失败只告警不中断）
+⑥ data.build_stock_indicators(force=True)
+⑦ store.build_and_cache(force=True)          # SENTI-1
+⑧ store.rebuild_swing_panels(force=True)     # 三个小波段，必须 force
 ```
 
 ### 18.4 数据源（2026-09-23 本环境实测）
@@ -1503,6 +1504,7 @@ score = 100 × (x − p2) / (p98 − p2)
 |---|---|---|
 | 上证 / 科创50 / 创业板 / 中证1000 / 沪深300 | 新浪 `ak.stock_zh_index_daily` | 与本地 `index_long` 重叠 35 天，偏差 **0.0000%** → 可直接追加 |
 | 个股日线 | 新浪 `ak.stock_zh_a_daily(symbol, adjust='qfq')` | 0.6s/只，自带 `amount` 列 |
+| 破净股占比 | 乐咕 `ak.stock_a_below_net_asset_statistics` | 全量历史一次返回（约 0.4s）→ 整体覆盖写 `market/bna.parquet`（§20.5 起随 refresh 每日更新） |
 | 中证2000 | **没有可用的免费源** | 见下 |
 
 网络可达性：`hq.sinajs.cn` ✔ / `web.ifzq.gtimg.cn` ✔ / `push2.eastmoney.com`（**仅快照**）✔ /
@@ -1818,3 +1820,19 @@ SWING-3 23.0→31.8。**注意中证2000 的 SWING 已到 86.5** —— 但顶�
   雷达卡不提供触发概率，也不提供时间估计。
 - 分差的跨板块稀有度并不严格相同（各板块分值分布尾部形状不同），
   它是操作性语义（离出提示还有多远），不是概率语义。
+
+## 20.5 破净率纳入每日 refresh（2026-10-16）
+
+`market/bna.parquet` 此前只能靠一次性脚本 `_explore/fetch_market.py` 手动更新
+（该脚本还写死了旧路径 `D:\情绪指标4\...`），种子停在 2026-09-18，
+之后信号的「估值投降」标签（`capit` / A-B-C 等级）只能靠 ffill 沿用 09-18 的值。
+
+改动：`senti/fetch.py` 新增 `fetch_market()`，加为 `refresh()` 第 ⑤ 步——
+乐咕 `stock_a_below_net_asset_statistics` 全量历史一次返回、整体覆盖写（幂等）；
+best-effort，失败只告警、保留旧文件，不中断 refresh。
+bat 无需改动（`更新数据.bat` 调的 `run.py refresh` 自动带上此步）。
+
+影响面：bna 只是底部信号的标签与 summary 展示（`bna_latest`/`bna_date`），
+**不是过滤器**——命中率数字不变；变化的是近期信号的等级标签从
+「沿用 09-18 旧值」变为「每日真实值」。
+文件保持入库（不学 stocks_delta 出库）：新机器离线首建时等级标签立即可用。

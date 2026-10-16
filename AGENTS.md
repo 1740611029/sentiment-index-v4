@@ -84,8 +84,9 @@ python _explore/smoke_page.py                   # ★ 改完页面 JS 必跑
 （面板是派生数据、不入库，没建出来就是这个错）。所以还要加 `if not errorlevel 0`。
 新机器最容易被打断的是 `build_stock_indicators()`（5000 个 parquet → 179MB 长表，十几分钟）。
 已加护栏：`store.panels_ready()` + `run.py stats` 说人话 + `run.py _require_seeds()`
-验种子目录 + `更新数据.bat` 面板缺失时自动补 `build`（详见 `DELIVERY.md` §18.13）。不可再生的种子已随仓库分发
-（`data/cache/` 的 `index_long`/`stocks_hist`/`market` 与 `data/universe/` 成分股清单）；
+验种子目录 + `更新数据.bat` 面板缺失时自动补 `build`（详见 `DELIVERY.md` §18.13）。种子已随仓库分发
+（`data/cache/` 的 `index_long`/`stocks_hist` 与 `data/universe/` 成分股清单不可再生；
+`market/` 破净率由 refresh 第 ⑤ 步每日再生、入库供离线首建）；
 `stocks_delta/`（个股增量，各机独立 `refresh` 再生）**不入库**——已加入 `.gitignore`；
 `data/meta.json`（`built_at`/`last_date`，各机各次 build 都不同）同样**不入库**——2026-10-15
 已从 git 索引摘除（`git rm --cached`）。它文件本身必须保留：它是 `web.ensure()` 判断

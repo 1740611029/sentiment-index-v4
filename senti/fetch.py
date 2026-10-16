@@ -12,6 +12,7 @@
 | 上证 / 科创50 / 创业板 / 中证1000 / 沪深300 | 新浪 `ak.stock_zh_index_daily` | 与本地 index_long 重叠 35 天，偏差 **0.0000%** → 可直接追加 |
 | 中证2000 | **没有可用的免费源** | 新浪与腾讯的 `sh000932` 都不是中证2000（腾讯 09-17→09-18 涨 0.429%、本地涨 1.647%、官方涨 1.774%） |
 | 个股日线 | 新浪 `ak.stock_zh_a_daily` | 0.6s/只，自带 amount 列 |
+| 破净股占比 | 乐咕 `ak.stock_a_below_net_asset_statistics` | 全量历史一次返回（0.4s），整体覆盖写 |
 
 网络可达性实测：`hq.sinajs.cn` / `web.ifzq.gtimg.cn` / `push2.eastmoney.com`（**仅快照**）/
 `datacenter-web.eastmoney.com` / `www.csindex.com.cn` 通；
@@ -319,10 +320,45 @@ def _align_boards(log=print):
     return cap, {b: str(v.date()) for b, v in last.items()}
 
 
+# ---------------------------------------------------------------- 市场级
+def fetch_market(log=print) -> dict:
+    """抓破净股占比 → `data/cache/market/bna.parquet`（整体覆盖写）。
+
+    乐咕接口一次返回 2005 年至今全历史，幂等；列名对齐旧种子（bna/bna_n/n_co，
+    见 data.load_bna_pct）。SENTI-1 底部信号的「估值投降」标签（capit / A/B/C 等级）
+    每天靠它前进——不更新就会像 2026-09-18 ~ 10-15 那样靠 ffill 沿用旧值。
+
+    best-effort：失败只告警、保留旧文件，不中断 refresh（load_bna_pct 能优雅降级）。
+    """
+    prep_env()
+    fp = os.path.join(data.MKT_DIR, "bna.parquet")
+    try:
+        import akshare as ak
+        b = ak.stock_a_below_net_asset_statistics()
+        if b is None or len(b) == 0:
+            raise ValueError("接口返回空")
+        b = b.rename(columns={"below_net_asset_ratio": "bna",
+                              "below_net_asset": "bna_n",
+                              "total_company": "n_co"})
+        b["date"] = pd.to_datetime(b["date"])
+        b = b[["date", "bna", "bna_n", "n_co"]]
+        old_last = None
+        if os.path.exists(fp):
+            old_last = str(pd.to_datetime(
+                pd.read_parquet(fp, columns=["date"])["date"]).max().date())
+        b.to_parquet(fp, index=False)
+        new_last = str(b["date"].max().date())
+        log(f"  bna 破净占比：{len(b)} 行，{old_last} → {new_last}")
+        return {"status": "ok", "rows": len(b), "last": new_last}
+    except Exception as e:
+        log(f"  ⚠️ bna 抓取失败（保留旧数据，不影响其余流程）：{e}")
+        return {"status": "fail", "err": str(e)}
+
+
 # ---------------------------------------------------------------- 编排
 def refresh(lookback: int = DEFAULT_LOOKBACK, workers: int = DEFAULT_WORKERS,
             skip_stocks: bool = False, log=print) -> dict:
-    """抓数 → 写本地增量缓存 → 对齐 6 板块日期轴。**不重建面板**（那是 run.py 的事）。"""
+    """抓数 → 写本地增量缓存 → 对齐 6 板块日期轴 → 市场级数据。**不重建面板**（那是 run.py 的事）。"""
     prep_env()
     frames: dict[str, pd.DataFrame] = {}
     stat = {"ok": 0, "empty": 0, "fail": 0}
@@ -346,7 +382,10 @@ def refresh(lookback: int = DEFAULT_LOOKBACK, workers: int = DEFAULT_WORKERS,
     cap, before = _align_boards(log)
     log(f"  数据最新交易日：{cap.date()}")
 
-    return {"stocks": stat, "index": idx, "csi2000": csi,
+    log("⑤ 抓市场级数据（破净股占比）...")
+    mkt = fetch_market(log)
+
+    return {"stocks": stat, "index": idx, "csi2000": csi, "market": mkt,
             "cap": str(cap.date()), "before_align": before}
 
 

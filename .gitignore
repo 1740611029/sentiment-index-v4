@@ -1,7 +1,8 @@
 # 数据缓存分层处理（portable-deployment）：
-#  · 不可再生种子（必须随仓库分发）：
+#  · 种子（必须随仓库分发）：
 #      index_long（指数拼接/合成长历史 1MB）、stocks_hist（个股长历史 242MB）、
-#      market（破净率 0.5MB）、universe（成分股清单，在 data/universe/）
+#      universe（成分股清单，在 data/universe/）——不可再生；
+#      market（破净率 0.5MB）——refresh 第⑤步每日可再生，入库供离线首建
 #  · 可再生 / 派生（不入库，各机 refresh / build 重建）：
 #      stocks_delta（本项目抓取增量，各机独立刷新再生，不入库）
 #      stock_ind.parquet（个股指标长表）、panels*（四模型面板）
