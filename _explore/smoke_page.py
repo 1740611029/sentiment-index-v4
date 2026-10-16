@@ -20,11 +20,15 @@
 ⚠️ 2026-10-07 新增「谁离出提示最近」雷达卡（board-radar 变更，板块卡与走势图之间，
    id=radar）：第 ⑥ 段校验行数 / 排序 / 分差数值 / 走向词 / 「不横向比高低」纪律 /
    违禁词「预计」（走向列只陈述事实，不做外推）。
+⚠️ 2026-10-16 新增板块卡「建议仓位」行（.pos）：第 ⑤ 段 INTRA stub 带 pos 预览、
+   断言「盘中→N层」随 showUntil 出现/消失；第 ⑦ 段校验两模式各 6 行、禁词
+   （减仓/卖出/买入）、层数 0~8 整数、卡内层数与 DATA.pos 一致、近 7 交易日
+   无并集事件必 0 层、事件日层数与伪 ures 等级映射一致。
 """
 import sys, os, re, json, subprocess, argparse, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-NODE = r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe"
+NODE = r"C:/Users/Administrator/AppData/Local/Author Software/nvm/.nodejs/node.exe"
 TMP = os.path.join(HERE, "_smoke_tmp")
 os.makedirs(TMP, exist_ok=True)
 
@@ -221,13 +225,15 @@ for(const k of Object.keys(DATA)) INTRA.boards[k]={
   senti:{v:21.8,trig:false,confirmed:false,reso:0},
   swing:{v:62.3,trig:true,confirmed:false},
   swing2:{v:38.9,trig:false,confirmed:false},
-  swing3:{v:23.0,trig:true,confirmed:true}};
+  swing3:{v:23.0,trig:true,confirmed:true},
+  pos:{swing:{layers:6,label:'盘中预估 · S 级提示日'},senti:{layers:0,label:'观望'}}};
 INTRA.boards[Object.keys(DATA)[0]].senti={v:-2.5,trig:true,confirmed:true,reso:4};
 render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 小机会模式盘中区数 '+cnt(bd5,/class="intr"/g)+' != 6');bad5++;}
 if(!/盘中 10-07 14:32/.test(bd5)){console.log('  !! 盘中区缺时间戳');bad5++;}
 if(!/62.3/.test(bd5)||!/38.9/.test(bd5)||!/23.0/.test(bd5)){console.log('  !! 小机会盘中区缺某个模型值');bad5++;}
+if(cnt(bd5,/盘中→6层/g)!==6){console.log('  !! 小机会盘中仓位预览应为 6 个「盘中→6层」，实得 '+cnt(bd5,/盘中→6层/g));bad5++;}
 if(/undefined|NaN/.test(bd5)){console.log('  !! 盘中区含 undefined/NaN');bad5++;}
 if(cnt(bd5,/○ 已达触发线/g)!==6){console.log('  !! 单样本态应为 6 个「○ 已达触发线」，实得 '+cnt(bd5,/○ 已达触发线/g));bad5++;}
 if(cnt(bd5,/● 若现在收盘将触发/g)!==6){console.log('  !! 确认态应为 6 个「● 若现在收盘将触发」，实得 '+cnt(bd5,/● 若现在收盘将触发/g));bad5++;}
@@ -237,18 +243,21 @@ if(cnt(bd5,/class="intr"/g)!==6){console.log('  !! 大机会模式盘中区数 '
 if(!/21.8/.test(bd5)||!/-2.5/.test(bd5)){console.log('  !! 大机会盘中区缺 SENTI-1 值');bad5++;}
 if(cnt(bd5,/● 若现在收盘将触发/g)!==1){console.log('  !! 大机会模式确认标记应只有 1 个');bad5++;}
 if(!/· 共振 4/.test(bd5)){console.log('  !! 大机会确认态应附「· 共振 N」');bad5++;}
+if(cnt(bd5,/盘中→0层/g)!==6){console.log('  !! 大机会盘中仓位预览应为 6 个「盘中→0层」，实得 '+cnt(bd5,/盘中→0层/g));bad5++;}
 /* 收盘后点击（live=false → showUntil=0）→ 显示「—」并标「已收盘」，标记随数值一起消失 */
 MODE='swing'; INTRA.showUntil=0; render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(/62.3/.test(bd5)){console.log('  !! 收盘后点击盘中值应显示 —');bad5++;}
 if(!/盘中（已收盘）/.test(bd5)){console.log('  !! 收盘后点击应标「已收盘」');bad5++;}
 if(/将触发|已达触发线/.test(bd5)){console.log('  !! 收盘后触发标记应随数值一起消失');bad5++;}
+if(/盘中→/.test(bd5)){console.log('  !! 收盘后盘中仓位预览应消失');bad5++;}
 /* 跨天（showUntil 已过期、clickedDay 是昨天）→ 回到「—」未刷新态 */
 INTRA.showUntil=Date.now()-1; INTRA.clickedDay='2000-01-01'; render();
 bd5=document.getElementById('boards').innerHTML||'';
 if(/62.3/.test(bd5)){console.log('  !! 跨天后盘中值应清空为 —');bad5++;}
 if(!/盘中（未刷新）/.test(bd5)){console.log('  !! 跨天后盘中区标题应回到未刷新态');bad5++;}
 if(/将触发|已达触发线/.test(bd5)){console.log('  !! 跨天后触发标记应消失');bad5++;}
+if(/盘中→/.test(bd5)){console.log('  !! 跨天后盘中仓位预览应消失');bad5++;}
 INTRA=null;
 console.log('  '+(bad5===0?'✔ 盘中刷新冒烟通过':'✘ 盘中刷新存在 '+bad5+' 处问题'));
 
@@ -302,7 +311,55 @@ for(const m of ['swing','senti']){
   if(nTr!==6){console.log('  !! '+tag+' 走向词数 '+nTr+' != 6');bad6++;}
 }
 console.log('  '+(bad6===0?'✔ 雷达卡片冒烟通过':'✘ 雷达卡片存在 '+bad6+' 处问题'));
-process.exit((bad2+bad3+bad4+bad5+bad6)?1:0);
+
+/* ---------- ⑦ 仓位行（建议持有几层仓，2026-10-16 新增） ---------- */
+console.log('\n⑦ 板块卡仓位行（pos）');
+let bad7=0;
+const GL={S:7,A:8,B:0,C:0};   // 与 position.SWING_MAP 事件档一致（s39 冻结）
+for(const m of ['swing','senti']){
+  MODE=m; SRC='union'; render();
+  const bd7=document.getElementById('boards').innerHTML||'';
+  const tag=(m==='swing')?'小机会':'大机会';
+  if(cnt(bd7,/<div class="pos">/g)!==6){
+    console.log('  !! '+tag+' 仓位行应为 6 个，实得 '+cnt(bd7,/<div class="pos">/g));bad7++;}
+  if(/undefined|NaN/.test(bd7)){console.log('  !! '+tag+' 仓位行含 undefined/NaN');bad7++;}
+  for(const f of bd7.match(/<div class="pos">[\s\S]*?<\/div>/g)||[]){
+    if(/减仓|卖出|买入/.test(f)){console.log('  !! '+tag+' 仓位行出现违禁词: '+f.slice(0,80));bad7++;}
+  }
+  /* 卡内层数 == DATA[k].pos[MODE].layers（按 data-k 切片逐卡核对） */
+  for(const k of Object.keys(DATA)){
+    const i0=bd7.indexOf('data-k="'+k+'"');
+    if(i0<0){console.log('  !! '+tag+' '+k+' 找不到板块卡');bad7++;continue;}
+    let i1=bd7.indexOf('data-k="',i0+9); if(i1<0) i1=bd7.length;
+    const mL=bd7.slice(i0,i1).match(/<div class="pos"><b[^>]*>(\d+) 层<\/b>/);
+    const exp=(DATA[k].pos&&DATA[k].pos[m]&&DATA[k].pos[m].layers)||0;
+    if(!mL){console.log('  !! '+tag+' '+k+' 卡内没有仓位行');bad7++;}
+    else if(+mL[1]!==exp){console.log('  !! '+tag+' '+k+' 卡内层数 '+mL[1]+' != DATA.pos '+exp);bad7++;}
+  }
+}
+/* DATA 不变量 */
+for(const k of Object.keys(DATA)){
+  const P=DATA[k].pos||{};
+  for(const m of ['swing','senti']){
+    const L=(P[m]||{}).layers;
+    if(!Number.isInteger(L)||L<0||L>8){
+      console.log('  !! '+k+' pos.'+m+'.layers 非法: '+L);bad7++;}
+  }
+  const dates=DATA[k].dates, lastD=dates[dates.length-1];
+  const cut=dates[Math.max(0,dates.length-8)];   // days 0..7 都在 event/hold 覆盖内
+  const inWin=(DATA[k].union_events||[]).filter(e=>e.date>=cut);
+  if(!inWin.length&&(P.swing||{}).layers!==0){
+    console.log('  !! '+k+' 近 7 交易日无并集事件但 swing 给了 '+P.swing.layers+' 层');bad7++;}
+  /* 事件日：用伪 ures（6 板块当日并集事件数）推等级，层数必须与冻结映射一致 */
+  if(inWin.some(e=>e.date===lastD)){
+    const ures=Object.keys(DATA).filter(b2=>(DATA[b2].union_events||[]).some(e=>e.date===lastD)).length;
+    const g=ures>=5?'S':ures>=4?'A':ures>=2?'B':'C';
+    if(P.swing.layers!==GL[g]){
+      console.log('  !! '+k+' 事件日 '+g+' 级应 '+GL[g]+' 层，DATA 给 '+P.swing.layers);bad7++;}
+  }
+}
+console.log('  '+(bad7===0?'✔ 仓位行冒烟通过':'✘ 仓位行存在 '+bad7+' 处问题'));
+process.exit((bad2+bad3+bad4+bad5+bad6+bad7)?1:0);
 """
 
 
@@ -340,7 +397,8 @@ def main():
         f.write(js)
 
     print("\n① JS 语法检查（node --check）")
-    r = subprocess.run([NODE, "--check", js_path], capture_output=True, text=True)
+    r = subprocess.run([NODE, "--check", js_path], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     if r.returncode != 0:
         print("  ✘ 语法错误：\n" + (r.stderr or "")[:2000]); return 1
     print(f"  ✔ 通过（{len(js)} 字符）")
@@ -358,7 +416,8 @@ def main():
     c_path = os.path.join(TMP, "chart.js")
     with open(c_path, "w", encoding="utf-8") as f:
         f.write(JS_STUB + "\n" + js + "\n" + JS_CHART)
-    r = subprocess.run([NODE, c_path], capture_output=True, text=True)
+    r = subprocess.run([NODE, c_path], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     out = (r.stdout or "").rstrip()
     print(out)
     if r.returncode != 0 or "<<<" in out:

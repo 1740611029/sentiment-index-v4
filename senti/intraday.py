@@ -25,7 +25,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from . import config as C, data, factors, fetch, model, store, swing, swing2, swing3
+from . import config as C, data, factors, fetch, model, position, store, swing, swing2, swing3
 
 TTL_SEC = 60                  # 进程内缓存：60 秒内重复请求直接复用
 STOCK_TAIL = 60               # 个股反推窗口（ma60 / 60 日新高新低需要 60 天）
@@ -142,34 +142,109 @@ def _today_stock_rows(stock_ind: pd.DataFrame, stk_snap: pd.DataFrame,
 
 
 def _scan_trig(s: np.ndarray, kind: str) -> bool:
-    """逐日模拟扫描分值序列（最后一行 = 临时今天），返回最后一行是否触发（含冷却）。
+    """逐日模拟扫描后，最后一行（= 临时今天）是否触发（含冷却）。
 
-    入场条件与各模型 events() 完全一致，只是不算未来收益、不截断末尾：
-      swing / swing2: s[i] <= THR
-      swing3:         s[i] <= THR 且 s[i] > s[i-1]（回升确认）
-      senti:          s[i-1] <= ENTRY_THR 且 s[i] > s[i-1]（昨日恐慌 + 今日掉头）
-    冷却按面板行距计（交易日）：swing 系 COOL=4，senti COOL_TRADING=20。
+    扫描实现统一到 position.scan_fires（入场规则/冷却与各模型 events() 全链路唯一）。
     """
-    thr = {"swing": swing.THR, "swing2": swing2.THR, "swing3": swing3.THR}.get(kind)
-    cool = store.COOL_TRADING if kind == "senti" else swing.COOL
-    n = len(s)
-    last = -10 ** 9
-    fired = False
-    for i in range(1, n):
-        if np.isnan(s[i]):
+    fires = position.scan_fires(s, kind)
+    return bool(fires) and fires[-1] == len(s) - 1
+
+
+def _pos_preview(boards: dict, series: dict, reso_n: int) -> dict:
+    """盘中仓位预览：复用 position 的状态识别与冻结映射，口径 = 生产（证据 _explore/s39、s40）。
+
+    与正式口径的两处有意差异（都是盘中噪声的保守化处理）：
+      本板「事件成立」要 confirmed（连续两次刷新都触发，防抖红线）；
+      横截面广度（伪 ures / reso_n）用 trig 单样本计数，与生产「当日有信号的板块数」同口径。
+    series: {board: {kind: (分值 ndarray, DatetimeIndex)}}，各模型最后一行都是「临时今天」。
+    """
+    from collections import Counter
+
+    fires = {(b, k): position.scan_fires(s, k)
+             for b, srow in series.items() for k, (s, _idx) in srow.items()}
+    # 并集伪 ures 历史：每板块并集事件日集合 → 每日期有事件的板块数
+    cnt: Counter = Counter()
+    for b, srow in series.items():
+        if not all(k in srow for k in ("swing", "swing2", "swing3")):
             continue
-        prev = s[i - 1]
-        if kind == "senti":
-            ok = not np.isnan(prev) and prev <= store.ENTRY_THR and s[i] > prev
-        elif kind == "swing3":
-            ok = s[i] <= thr and not np.isnan(prev) and s[i] > prev
-        else:
-            ok = s[i] <= thr
-        if ok and i - last >= cool:
-            last = i
-            if i == n - 1:
-                fired = True
-    return fired
+        ds = set()
+        for k in ("swing", "swing2", "swing3"):
+            s, idx = srow[k]
+            ds |= {str(idx[i].date()) for i in fires[(b, k)]}
+        for d in ds:
+            cnt[d] += 1
+    # SENTI-1 盘中共振历史：各板块盘中拼接序列逐日 ≤ENTRY_THR 的板块数（公共日期轴）
+    sS = pd.DataFrame({b: pd.Series(srow["senti"][0], index=srow["senti"][1])
+                       for b, srow in series.items() if "senti" in srow})
+    reso_hist = (sS <= store.ENTRY_THR).sum(axis=1) if not sS.empty else None
+    try:
+        bna = store.bna_series()
+    except Exception:
+        bna = None
+
+    def grade_at(idx, j):
+        """历史上某触发日的伪 grade：resonant 用当日共振历史，capit 用 bna ffill 到当日。"""
+        r0 = None
+        if reso_hist is not None:
+            rv = reso_hist.get(idx[j], np.nan)
+            if not pd.isna(rv):
+                r0 = int(rv)
+        b0 = None
+        if bna is not None and len(bna):
+            bv = bna.reindex(pd.DatetimeIndex([idx[j]]), method="ffill").to_numpy(dtype=float)
+            if not np.isnan(bv[0]):
+                b0 = float(bv[0])
+        return position.senti_grade(
+            None if b0 is None else b0 >= store.BNA_PCT_MIN,
+            None if r0 is None else r0 >= store.RESONANCE_MIN)
+
+    out: dict[str, dict] = {}
+    for b, srow in series.items():
+        cell: dict[str, dict] = {}
+        if all(k in srow for k in ("swing", "swing2", "swing3")):
+            ref_idx = srow["swing"][1]
+            n = len(ref_idx)
+            today = str(ref_idx[-1].date())
+            pos_of = {str(d.date()): i for i, d in enumerate(ref_idx)}
+            ev_today = any(boards[b][k]["confirmed"] for k in ("swing", "swing2", "swing3"))
+            if ev_today:
+                st = position.swing_st(0, position.swing_grade(cnt.get(today, 1)))
+            else:
+                past = [pos_of[d] for k in ("swing", "swing2", "swing3")
+                        for i in fires[(b, k)]
+                        for d in [str(srow[k][1][i].date())]
+                        if pos_of.get(d) is not None and pos_of[d] < n - 1]
+                if past:
+                    j = max(past)
+                    g = position.swing_grade(cnt.get(str(ref_idx[j].date()), 1))
+                    st = position.swing_st(n - 1 - j, g)
+                else:
+                    st = {"state": "none"}
+            adv = position.swing_advice(st)
+            cell["swing"] = {**adv, "label": "盘中预估 · " + adv["label"]}
+        if "senti" in srow:
+            s, idx = srow["senti"]
+            n = len(s)
+            today_v = float(s[-1]) if not np.isnan(s[-1]) else None
+            if boards[b]["senti"]["confirmed"]:
+                capit = None
+                if bna is not None and len(bna.dropna()):
+                    capit = bool(bna.dropna().iloc[-1] >= store.BNA_PCT_MIN)
+                g = position.senti_grade(capit, reso_n >= store.RESONANCE_MIN)
+                st = position.senti_st(0, g)
+            else:
+                past = [i for i in fires[(b, "senti")] if i < n - 1]
+                if past and n - 1 - past[-1] <= store.H:
+                    st = position.senti_st(n - 1 - past[-1], grade_at(idx, past[-1]))
+                elif today_v is not None and today_v <= store.ENTRY_THR:
+                    st = {"state": "panic"}
+                else:
+                    st = {"state": "none"}
+            st["score"] = today_v
+            adv = position.senti_advice(st)
+            cell["senti"] = {**adv, "label": "盘中预估 · " + adv["label"]}
+        out[b] = cell
+    return out
 
 
 def _compute() -> dict:
@@ -191,8 +266,10 @@ def _compute() -> dict:
     col = {"senti": "score", "swing": "swing", "swing2": "swing2", "swing3": "swing3"}
     try:
         boards: dict[str, dict] = {}
+        series: dict[str, dict] = {}           # {board: {kind: (分值序列, 索引)}}，供仓位预览复用
         for b in C.BOARD_ORDER:
             row = {}
+            srow = {}
             fns = {
                 "senti": lambda: model.build(b, stock_ind),
                 "swing": lambda: swing.build(b, stock_ind),
@@ -201,14 +278,17 @@ def _compute() -> dict:
             }
             for k, fn in fns.items():
                 try:
-                    s = fn()[col[k]].to_numpy(dtype=float)
+                    ser = fn()[col[k]]
+                    s = ser.to_numpy(dtype=float)
                     v = float(s[-1])
                     ok = np.isfinite(v)
                     row[k] = {"v": round(v, 1) if ok else None,
                               "trig": bool(_scan_trig(s, k)) if ok else False}
+                    srow[k] = (s, ser.index)
                 except Exception:
                     row[k] = {"v": None, "trig": False}   # 单模型失败不影响其它模型
             boards[b] = row
+            series[b] = srow
     finally:
         data.load_index, factors.build_board_raw = orig_index, orig_raw
 
@@ -225,6 +305,15 @@ def _compute() -> dict:
     _prev_trig.clear()
     _prev_trig.update({(b, k): cell["trig"] for b, r in boards.items()
                        for k, cell in r.items()})
+
+    # 盘中仓位预览（在 confirmed 之后：本板事件成立要看 confirmed；纯内存，不落盘）
+    try:
+        pos_prev = _pos_preview(boards, series, reso_n)
+        for b in C.BOARD_ORDER:
+            if b in pos_prev:
+                boards[b]["pos"] = pos_prev[b]
+    except Exception:
+        pass                                    # 仓位预览失败不影响分值/触发标记
 
     # live = 点击时正处在交易时段（快照日=今天 且 09:25~15:05）。
     # 节假日/收盘后点击为 False，前端据此一直显示占位符「—」。

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import model, swing, swing2, swing3
+from . import model, position, swing, swing2, swing3
 
 PANEL_DIR = os.path.join(C.DATA_DIR, "panels")
 META_PATH = os.path.join(C.DATA_DIR, "meta.json")
@@ -609,5 +609,10 @@ def to_json(panels: dict[str, pd.DataFrame]) -> dict:
             "swing3_events": swing3.events(q3, s3reso),
             # ---- 并集（默认视图）----
             "union_events": uev[b],
+            # ---- 板块卡仓位建议（senti/position.py，映射证据见 _explore/s39）----
+            "pos": {
+                "swing": position.swing_advice(position.swing_state(uev[b], p.index)),
+                "senti": position.senti_advice(position.senti_state(p, reso, bna)),
+            },
         }
     return out

@@ -94,6 +94,12 @@
   .bd .intr b{font-weight:650;font-size:12.5px}
   .bd .intr i{font-style:normal;font-size:10.5px;font-weight:650;white-space:nowrap}
   .bd .intr .itr{color:#9AABBF}
+  /* 建议仓位行（跟随大/小机会模式；层数=「今天才开仓开几层」的开仓强度，0~8，永不喊满仓） */
+  .bd .pos{margin-top:4px;font-size:11.5px;color:var(--dim);
+      display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .bd .pos b{font-size:16px;font-weight:650}
+  .bd .pos .pl{color:var(--mut);font-weight:600;white-space:nowrap}
+  .bd .pos .pi{font-style:normal;font-size:10.5px;white-space:nowrap}
 
   /* ---------- 雷达：谁离出提示最近（只比分差，不横向比高低） ---------- */
   .radar{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);
@@ -480,6 +486,16 @@ function renderBoards(){
     };
     const ilab=iv?('盘中 '+INTRA.ts)
       :(INTRA&&INTRA.clickedDay===todayStr()?'盘中（已收盘）':'盘中（未刷新）');
+    /* 建议仓位行（跟随 MODE，不跟 SRC）：层数=「今天才开仓开几层」的开仓强度（0~8，永不喊满仓）。
+       无提示/高位 = 0 层观望，不给减仓建议。映射证据 _explore/s39 + s40 → DELIVERY.md §21。 */
+    const pa=(B.pos&&B.pos[MODE])||{layers:0,label:'观望',why:''};
+    const pla=(iv&&iv.pos&&iv.pos[MODE])||null;
+    const pcol=pa.layers>=5?'#6FE39C':(pa.layers>0?'#F5B544':'var(--dim)');
+    rows+=`<div class="pos"><b style="color:${pcol}">${pa.layers} 层</b>`
+        +`<span class="pl">${pa.label||'观望'}</span>`
+        +(pa.why?`<span>${pa.why}</span>`:'')
+        +(pla?`<i class="pi">盘中→${pla.layers}层</i>`:'')
+        +`</div>`;
     if(MODE==='swing'){
       rows+=`<div class="intr"><span>${ilab}</span>${cell(v.swing,'#63B3FF')}<span>/</span>${cell(v.swing2,'#C9A2FF')}<span>/</span>${cell(v.swing3,'#FFB86B')}</div>`;
     }else{
@@ -914,12 +930,20 @@ function renderMeta(){
        等级<b class="k">不决定出不出提示</b>，只用来定仓位轻重。
        <br><b class="k">别拿 S 级当全部提示的水平</b>：以「跌得深」为例，全部提示约 ${swt.rate??64}% 上涨，
        S 级约 87%，但 S 级一年只有 3~5 次。
+       <br><b class="k">建议仓位（卡片最下面一行）</b>：「如果今天才开仓，开几层」的机械映射（0~8 层，永不喊满仓）——
+       S 级提示日 7 层、A 级 8 层，提示后前 3 天 5 层、第 4 天起回 0（那时盈亏比已≈0）；
+       B/C 级提示的历史胜率和闭眼买差不多，给 0 层观望。
+       由近 3 年回测胜率+盈亏比分档冻结；温度高时不给建议，也不喊减仓。
        <br><b class="k">判定口径</b>：提示后第 ${sw.hold} 天收盘高于提示日，且中间最多浅套 ${sw.tol}%。`
     : `<b class="k">等级有什么用</b>：等级<b class="k">不决定出不出提示</b>，只用来定仓位——
        <b style="color:#6FE39C">A</b>：「估值投降」和「多板块一起恐慌」两个证据都成立，最足；
        <b style="color:#F5B544">B</b>：只成立一个；
        <b style="color:#96A5BA">C</b>：都没成立，建议减半或观望。
        近 3 年：A 级 3 次（3/3 命中）、B 级 16 次（14/16）、C 级 0 次。
+       <br><b class="k">建议仓位（卡片最下面一行）</b>：「如果今天才开仓，开几层」的机械映射（0~8 层，永不喊满仓）——
+       A/B 级提示日 8 层；之后 20 天内温度 ≤40 时 7→5 层递减，温度已回暖（>40）或跌回恐慌区（≤0）降到 3 层；
+       分值 ≤0 还没出提示的恐慌日子给 3 层；C 级 0 层观望（置信度只回到历史平均）。
+       由近 3 年回测胜率+盈亏比分档冻结；温度高时不给建议，也不喊减仓。
        <br><b class="k">大底提示的整体水平</b>：13 年里按「独立行情」算是 18 次、14 次命中（约 78%）。
        近 3 年的 17 次提示其实只对应 5 波行情，所以别看 17/19 就说 89%。
        <br><b style="color:#FF5C5C">没有顶部提示</b>：原来的「涨过头」提示实测和瞎猜没区别（2/9），已取消。
