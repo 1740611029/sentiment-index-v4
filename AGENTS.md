@@ -227,7 +227,6 @@ python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过�
 | `senti/fetch.py` / `run.py refresh` / 数据源 | 同步 `DELIVERY.md` §18 + `README.md` §7 + 本文件 §6。改完**必须实跑一次 refresh** 并复核「刷新前后统计数字完全一致」（纯追加的证据） |
 | 面板缓存失效逻辑（`store.clear_caches` / `rebuild_swing_panels` / `web.ensure`） | ⛔ 不要把 `swing*.build_and_cache()` 的 `force` 默认值改回 `False`；⛔ 不要去掉 `web.ensure()` 的 `built_at` 版本号判断（否则用户跑完 `更新数据.bat` 不重启服务看不到新数据） |
 | 盘中预览（`senti/intraday.py` / `/api/intraday` / `fetch.fetch_*_snapshot`） | ⛔ 盘中数据只准在内存，**禁止写盘**；⛔ 不要接进 `web.ensure()` 版本机制；改完页面部分跑 `smoke_page.py` 第 ⑤ 段；同步 `DELIVERY.md` §18.10 |
-| `senti/position.py` 仓位映射表 | 必须附 `_explore/s39.py` + `_explore/s40.py` 重跑证据（分桶命中 + Wilson 闸门 + 下界处期望收益 > 0 的盈亏比闸门 + parity 自检）+ 重启服务 + 跑 `smoke_page.py` 第 ⑦ 段；同步 `DELIVERY.md` §21 |
 
 ⚠️ **改 `index.html` 时不要并行发多个 Edit** —— 同一文件会互相覆盖，只有最后一条生效。
 
@@ -383,10 +382,6 @@ python _explore/check_refresh.py --check    # 刷新后 → 必须「✔ 通过�
   但第一枪时不可知，也没有找到实时替代（`_explore/s26`）。
 - ❌ 已作废的旧数字（前视口径算的，别引用）：
   ~~20/20=100%~~ ~~39/41=95.1%~~ ~~41 次最差 −3.20%~~ ~~下界 83.9%~~ ~~阈值 −6~~
-- **仓位建议的文案禁区**（2026-10-16 起，板块卡 `.pos` 行，`DELIVERY.md` §21）：
-  禁「减仓 / 卖出 / 买入」；永不喊满仓（封顶 8 层）；
-  层数 =「如果今天才开仓，开几层」的新开仓强度，不是目标仓位、不是增减量，
-  「没有新建议 ≠ 卖掉」；温度 >100（贪婪区）只显示「0 层 · 观望」，不给任何建议。
 
 ---
 
