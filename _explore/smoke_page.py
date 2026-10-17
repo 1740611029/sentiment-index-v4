@@ -21,10 +21,11 @@
    id=radar）：第 ⑥ 段校验行数 / 排序 / 分差数值 / 走向词 / 「不横向比高低」纪律 /
    违禁词「预计」（走向列只陈述事实，不做外推）。
 """
-import sys, os, re, json, subprocess, argparse, urllib.request
+import sys, os, re, json, shutil, subprocess, argparse, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-NODE = r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe"
+# node 探测：PATH 优先，退回旧机写死路径（wr 机 PATH 里可能没有 node）
+NODE = shutil.which("node") or r"C:/Users/wr/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe"
 TMP = os.path.join(HERE, "_smoke_tmp")
 os.makedirs(TMP, exist_ok=True)
 
