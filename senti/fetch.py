@@ -56,6 +56,59 @@ DEFAULT_WORKERS = 8
 DEFAULT_LOOKBACK = 120         # 日历日：覆盖「本地缓存末日 → 今天」并留足重叠期做复权校准
 
 
+# ---------------------------------------------------------------- mini_racer 并发崩溃
+# 症状：每天**第一次**双击 更新数据.bat 必报
+#     [ERROR] refresh failed or was interrupted (exit code -2147483645)
+# 事件日志（Application / Id 1000）：错误模块 mini_racer.dll，异常代码 0x80000003，
+# 进程存活只有 3~63 秒。退出码 -2147483645 = 0x80000003 = STATUS_BREAKPOINT。
+#
+# 根因（2026-10-23 复现，见 `_explore/s39_racer_crash.py`）：
+#   akshare 的 `stock_zh_a_daily()` **每调用一次就新建一个 V8 isolate**
+#   （akshare/stock/stock_zh_a_sina.py:184 `py_mini_racer.MiniRacer()`），
+#   而 `fetch_stocks()` 用 8 个线程并发调它。V8 的 configurable pool
+#   （sandbox 地址空间）一个进程只能初始化一次，两个线程同时进初始化就命中
+#       [FATAL:partition_address_space.cc(243)] Check failed: !IsConfigurablePoolInitialized()
+#   → V8 的 IMMEDIATE_CRASH()（MSVC 下就是 __debugbreak()）→ 进程直接死。
+#   **这不是 Python 异常，try/except 拦不住**，重试循环（`one()` 里的 3 次）也没用。
+#
+# 为什么偏偏是「每天第一次」：进程首次加载 mini_racer.dll 要从磁盘读几十 MB，
+# V8 初始化窗口被拉长很多 → 8 个线程的初始化几乎必然重叠；崩过一次之后 dll
+# 已在系统文件缓存里，初始化回到毫秒级 → 撞不上，于是「重跑一次就好了」。
+# 实测：8 线程 × 300 轮「新建」在第 1 轮就崩；单线程串行建 60 个完全正常。
+#
+# 修法：每个线程只建一个 isolate 并复用，首次创建加锁串行 —— 创建次数从
+# ~4500 次降到 8 次，且不可能重叠。复用的 isolate 语义不变（`eval(hk_js_decode)`
+# 只是重定义解密函数 d，纯函数、无状态）。
+_racer_tls = threading.local()
+_racer_init_lock = threading.Lock()
+_racer_patched = False
+
+
+def _install_racer_reuse() -> None:
+    """把 `py_mini_racer.MiniRacer` 换成「每线程复用 + 首次创建加锁」的工厂（幂等）。
+
+    akshare 里是 `import py_mini_racer` + 调用时 `py_mini_racer.MiniRacer()`，
+    所以替换模块属性即可生效，不用改第三方代码。
+    """
+    global _racer_patched
+    if _racer_patched:
+        return
+    import py_mini_racer
+
+    real = py_mini_racer.MiniRacer
+
+    def factory(*a, **kw):
+        inst = getattr(_racer_tls, "racer", None)
+        if inst is None:
+            with _racer_init_lock:      # V8 全局池初始化必须串行
+                inst = real(*a, **kw)
+            _racer_tls.racer = inst
+        return inst
+
+    py_mini_racer.MiniRacer = factory
+    _racer_patched = True
+
+
 # ---------------------------------------------------------------- 环境 / 工具
 def prep_env() -> None:
     """清掉代理环境变量。akshare 在新浪/东财上遇到代理会直接连不上。"""
@@ -228,6 +281,7 @@ def fetch_stocks(codes: list[str], lookback: int = DEFAULT_LOOKBACK,
     """
     prep_env()
     import akshare as ak
+    _install_racer_reuse()      # 见文件头「mini_racer 并发崩溃」
 
     os.makedirs(DELTA_DIR, exist_ok=True)
     end = pd.Timestamp.today()

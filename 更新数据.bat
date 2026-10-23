@@ -37,8 +37,22 @@ goto :ref_ok
 :ref_fail
 echo.
 echo [ERROR] refresh failed or was interrupted (exit code %ERRORLEVEL%).
+if "%ERRORLEVEL%"=="-2147483645" goto :ref_v8
 echo         - If you pressed Ctrl-C or closed the window, just run this bat again.
 echo         - If this PC never ran [first_setup.bat], run that once first.
+goto :ref_end
+
+:ref_v8
+rem  -2147483645 = 0x80000003 = STATUS_BREAKPOINT: the V8 engine inside
+rem  mini_racer.dll hit a fatal CHECK (akshare decodes Sina data with JS).
+rem  Root cause and fix: senti/fetch.py, function _install_racer_reuse
+echo         Cause: the V8 engine in mini_racer.dll crashed (exception 0x80000003)
+echo         while 8 threads built their JS decoders at the same time. It is a
+echo         native crash, not a Python error, so it cannot be caught or retried.
+echo         Just run this bat again - the second run normally passes.
+echo         Permanent fix: senti/fetch.py, function _install_racer_reuse.
+
+:ref_end
 pause
 exit /b 1
 
